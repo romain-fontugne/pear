@@ -19,7 +19,7 @@ if __name__ == '__main__':
             help="CSV file with a list of selected prefixes and optional weights"),
     parser.add_argument('-w', '--weight_name', type=str, default='avg_bps',
             help="Name of the column in the csv file used for prefix weights"),
-    parser.add_argument('-g', '--graph_filename', type=str, default='interactive_graph_AS{ASN}_{route_collector}_{weight_name}.html',
+    parser.add_argument('-g', '--graph_filename', type=str, default='interactive_graph_AS{ASN}_{weight_name}.html',
             help="File name for the ploted AS graph"),
     args = parser.parse_args()
 
@@ -48,8 +48,7 @@ if __name__ == '__main__':
     graph.top_nodes(10, weights, bgp_table)
 
     plot_fname = args.graph_filename.format(
-        ASN=args.ASN, route_collector=args.route_collector,
-        prefixes=args.prefixes, weight_name=args.weight_name)
+        ASN=args.ASN, prefixes=args.prefixes, weight_name=args.weight_name)
     sys.stderr.write('Ploting AS Graph\n')
     #gp = GraphPlotter(args.ASN)
     #gp.plot(graph, plot_fname)

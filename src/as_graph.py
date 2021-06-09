@@ -33,13 +33,12 @@ class ASGraph(object):
         If a list of prefix is given, the graph represents only these prefixes"""
 
         if prefixes is None:
-            paths = bgp_table.list_aspahts()
+            paths = bgp_table.list_aspaths()
         else:
             paths = map(bgp_table.path, prefixes)
 
-        for prefix, aspath in paths:
+        for prefix, asns in paths:
             # Add path to the graph
-            asns = aspath.split(' ')
             prev_asn = asns[0]
             for distance, asn in enumerate(asns[1:]):
                 self.graph.add_edge(prev_asn, asn)

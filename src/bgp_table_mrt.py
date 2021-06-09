@@ -20,30 +20,41 @@ class BGPTable(object):
     
         for entry in Reader(self.mrt_fname):
 
+            # parse RIB entries
+            if ( entry.data['subtype'][1] == 'RIB_IPV4_UNICAST' 
+                or entry.data['subtype'][1] == 'RIB_IPV6_UNICAST' ):
+
+                prefix = f"{entry.data['prefix']}/{entry.data['prefix_length']}"
+                as_path = []
+                recs = [rec 
+                            for rec in entry.data['rib_entries']
+                                if rec['peer_index'] in self.main_as_idx]
+                if len(recs)>1:
+                    print('more than one rec per prefix!\n',recs)
+                elif len(recs) > 0:
+                    rec = recs[0]
+                    # Get AS path
+                    path = [attribute 
+                            for attribute in rec['path_attributes']
+                            if attribute['type'][1] == 'AS_PATH'] 
+                    if path[0]['length']>0:
+                        # fetch the AS path
+                        as_path = path[0]['value'][0]['value']
+
+                    # Add path to the radix tree
+                    rnode = self.rtree.add(prefix)
+                    as_path = self.clean_aspath(as_path)
+                    rnode.data['as-path'] = as_path 
+                    if len(as_path) > 1:
+                        self.peers.add(as_path[1])
+
+
             # parse peers list and get main peer indexes
-            if entry.data['subtype'][1] == 'PEER_INDEX_TABLE':
+            elif entry.data['subtype'][1] == 'PEER_INDEX_TABLE':
                 for idx, peer in enumerate(entry.data['peer_entries']):
                     if peer['peer_as'] == self.main_as:
                         self.main_as_idx.add(idx)
 
-            if entry.data['subtype'][1] == 'RIB_IPV4_UNICAST':
-                prefix = entry.data['prefix']
-                as_path = None
-                for rec in entry.data['rib_entries']:
-                    if rec['peer_index'] in self.main_as_idx:
-                        # Get AS path
-                        path = [attribute 
-                                for attribute in rec['path_attributes']
-                                if attribute['type'][1] == 'AS_PATH'] 
-                        as_path = path[0]['value'][0]['value']
-
-                        # Add path to the tree
-                        rnode = self.rtree.add(prefix)
-                        as_path = self.clean_aspath(as_path)
-                        rnode.data['as-path'] = as_path 
-                        if len(as_path) > 1:
-                            self.peers.add(as_path[1])
-                        break
 
     def list_peers(self):
         """Return the list of 1-hop peer ASes"""
@@ -53,7 +64,9 @@ class BGPTable(object):
     def clean_aspath(self, aspath):
         """Remove path prepending and duplicate ASes"""
         
-        cleaned = []
+        # make sure the path starts with the main AS (and that we have at least
+        # one AS e.g. for internal prefixes)
+        cleaned = [self.main_as]
 
         for asn in aspath:
             if asn not in cleaned:
