@@ -36,13 +36,13 @@ Routing data should be RIB in the MRT format. The tool can read compressed files
 ## Usage
 Run the tool with the following command line:
 ```zsh
-python src/pear.py -p traffic_data.csv -b rib.mrt 2497
+python app.py -p traffic_data.csv -b rib.mrt 2497
 ```
 where 'traffic_data.csv' is the file containing the traffic data and 'rib.mrt'
 is the file containing the routing data.
+This will take a few minutes to read and load all the data.
 
-The tool produces an HTML file (interactive_graph_ASXXX_avg_bps.html) in the 
-same directory that contains the AS graph with traffic data.
+Then in your browser go to: http://localhost:5000
 
 ## Acknowledgments
 

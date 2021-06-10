@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>BGP Table</title>
+{% endblock %}
+
+{% block body %}
+<h1>BGP Table</h1>
+<div class="table-responsive">
+<table class="table table-striped table-sm">
+    <thead>
+    <tr>
+        <th>Prefix<th>
+        <th>AS path</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for entry in rib %}
+        <tr>
+            <td>{{ entry[0] }}</td>
+            <td>{{ entry[1] }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<canvas class="my-4" id="chart" width="900" height="380"></canvas>
+{% endblock %}

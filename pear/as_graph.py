@@ -1,9 +1,4 @@
-import sys
 import networkx as nx
-import arrow
-import pybgpstream
-from ihr.rov import ROV
-from geolite_city import GeoliteCity
 
 def sizeof_fmt(num, suffix=''):
     for unit in ['','K','M','G','T','P','E','Z']:
@@ -14,28 +9,23 @@ def sizeof_fmt(num, suffix=''):
 
 
 class ASGraph(object):
-    def __init__(self, peer_as) :
+    def __init__(self, peer_as, bgp_table) :
         """Initialize AS Graph attributes"""
 
         self.peer_as = int(peer_as)
         self.graph = nx.DiGraph()
         self.max_weight = 1
-
-        self.rov = ROV()
-        self.rov.load_databases()
-
-        self.gc = GeoliteCity()
-        self.gc.load_database()
+        self.bgp_table = bgp_table
 
 
-    def build_graph(self, bgp_table, prefixes=None):
+    def build_graph(self, prefixes=None):
         """Fetch BGP data and build the AS graph. 
         If a list of prefix is given, the graph represents only these prefixes"""
 
         if prefixes is None:
-            paths = bgp_table.list_aspaths()
+            paths = self.bgp_table.list_aspaths()
         else:
-            paths = map(bgp_table.path, prefixes)
+            paths = map(self.bgp_table.path, prefixes)
 
         for prefix, asns in paths:
             # Add path to the graph
@@ -67,17 +57,17 @@ class ASGraph(object):
                         p0_weights = [1]
                     else:
                         p0_weights = prefix_weight[prefix_weight['prefix'] == p0]['__weights__'].values
+
+                    info = self.bgp_table.prefix_info(p0)
+
                     for p0_weight in p0_weights:
                         if data['weight'] is None:
                             data['weight'] = 0
                             data['prefix_info'] = {}
                         data['weight'] += p0_weight*(distance**hop_power)
 
-                        # get more info
-                        irr = self.rov.lookup(p0)['irr'].get(p0, {})
-                        ip = p0.partition('/')[0]
-                        cc = self.gc.lookup(ip).country.iso_code
-                        data['prefix_info'][p0] = f'{sizeof_fmt(p0_weight)}, {cc}, {irr.get("descr","-")}'#({info["delegated"].get("country")})'
+                        # add prefix info
+                        data['prefix_info'][p0] = f'{sizeof_fmt(p0_weight)}, {info["country"]}, {info["irr"].get("descr","-")}'#({info["delegated"].get("country")})'
 
         # Compute node weights
         for node, node_data in self.graph.nodes(data=True):

@@ -1,6 +1,7 @@
 import appdirs
 import os
 import sys
+import geoip2
 import geoip2.database
 import shutil
 import tarfile
@@ -45,10 +46,15 @@ class GeoliteCity(object):
         self.download_database(overwrite=False)
         self.reader = geoip2.database.Reader(self.dbfname)
 
-    def lookup(self, ip):
-        response = self.reader.city(ip)
-        # response.country.iso_code
-        return response
+    def country(self, ip):
+        """Find the country code for the given IP address"""
+        cc = "ZZ"
+        try:
+            cc = self.reader.city(ip).country.iso_code
+        except geoip2.errors.AddressNotFoundError:
+            pass
+
+        return cc
 
 
 if __name__ == '__main__':

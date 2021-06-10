@@ -38,8 +38,8 @@ if __name__ == '__main__':
 
 
     sys.stderr.write('Building AS graph\n')
-    graph = ASGraph(args.ASN)
-    graph.build_graph(bgp_table, weights.prefixes())
+    graph = ASGraph(args.ASN, bgp_table)
+    graph.build_graph(weights.prefixes())
 
     sys.stderr.write('Computing weights\n')
     # compute edges/nodes weights

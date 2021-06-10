@@ -1,4 +1,6 @@
 import networkx as nx
+import json
+import plotly
 import plotly.graph_objects as go
 
 OWN_AS, DIRECT_PEER, OTHER_COLOR = "gray", "green", "blue"
@@ -47,7 +49,7 @@ class SankeyPlotter(object):
                         for prefix, info in data['prefix_info'].items()]
                         ))
 
-        fig = go.Figure(data=[go.Sankey(
+        self.fig = go.Figure(data=[go.Sankey(
             node=dict(
                 pad = 15,
                 label = nodes_list,
@@ -61,6 +63,9 @@ class SankeyPlotter(object):
                 hovertemplate= 'Total: %{value} <br />%{customdata}<extra></extra>',
             ))])
         
-        fig.update_layout(title_text="Basic Sankey Diagram", font_size=10)
-        fig.write_html(fname)
+        if fname is not None:
+            self.fig.write_html(fname)
+
+    def to_json(self):
+        return json.dumps(self.fig, cls=plotly.utils.PlotlyJSONEncoder)
 

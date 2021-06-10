@@ -1,8 +1,9 @@
-import arrow
 from mrtparse import *
 import radix
 import sys
 
+from rov import ROV
+from pear.geolite_city import GeoliteCity
 
 class BGPTable(object):
     def __init__(self, mrt_fname, peer_as):
@@ -13,6 +14,12 @@ class BGPTable(object):
         self.main_as_idx = set()
         self.rtree = radix.Radix()
         self.peers = set()
+
+        self.rov = ROV()
+        self.rov.load_databases()
+
+        self.gc = GeoliteCity()
+        self.gc.load_database()
 
 
     def load_bgp(self):
@@ -55,6 +62,48 @@ class BGPTable(object):
                     if peer['peer_as'] == self.main_as:
                         self.main_as_idx.add(idx)
 
+    def add_prefix_info(self):
+        """Add geoloc and IRR data to all prefixes in the table"""
+
+        self.add_irr()
+        self.add_geoloc()
+
+
+    def add_irr(self):
+        """Add IRR data to all prefixes in the table"""
+
+        for rnode in self.rtree:
+
+            if not 'info' in rnode.data:
+                rnode.data['info'] = {}
+
+            # find country code
+            irr = self.rov.lookup(rnode.prefix)['irr'].get(rnode.prefix, {})
+
+            rnode.data['info']['irr'] = irr
+
+    def add_geoloc(self):
+        """Geolocate all prefixes in the table"""
+
+        for rnode in self.rtree:
+
+            if not 'info' in rnode.data:
+                rnode.data['info'] = {}
+
+            # find country code
+            ip = rnode.prefix.partition('/')[0]
+            cc = self.gc.country(ip)
+
+            rnode.data['info']['country'] = cc
+
+    def prefix_info(self, prefix):
+        """Return the computed info (geoloc/irr) for the given prefix"""
+
+        rnode = self.rtree.search_best(prefix)
+        if rnode is None:
+            return {}
+        else:
+            return rnode.data.get('info', {})
 
     def list_peers(self):
         """Return the list of 1-hop peer ASes"""

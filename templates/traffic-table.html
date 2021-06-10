@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>Traffic data</title>
+{% endblock %}
+
+{% block body %}
+<h1>Traffic data</h1>
+<div class="table-responsive">
+<table class="table table-striped table-sm">
+    <thead>
+    <tr>
+        <th>Prefix<th>
+        <th>Traffic Volume</th>
+        <th>Country</th>
+        <th>AS path</th>
+        <th>IRR</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for prefix, info in flows.items() %}
+        <tr>
+            <td>{{ prefix }}</td>
+            <td>{{ info.vol }}</td>
+            <td>{{ info.cc }}</td>
+            <td>{{ info.aspath }}</td>
+            <td>{{ info.irr }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}
