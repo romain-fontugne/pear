@@ -51,7 +51,8 @@ class BGPTable(object):
                     # Add path to the radix tree
                     rnode = self.rtree.add(prefix)
                     as_path = self.clean_aspath(as_path)
-                    rnode.data['as-path'] = as_path 
+                    rnode.data['aspath'] = as_path 
+                    rnode.data['originasn'] = as_path[-1]
                     if len(as_path) > 1:
                         self.peers.add(as_path[1])
 
@@ -62,39 +63,46 @@ class BGPTable(object):
                     if peer['peer_as'] == self.main_as:
                         self.main_as_idx.add(idx)
 
-    def add_prefix_info(self):
-        """Add geoloc and IRR data to all prefixes in the table"""
+    def add_prefix_info(self, prefixes):
+        """Add geoloc and IRR data to given prefixes or all prefixes 
+        if prefixes=None"""
 
-        self.add_irr()
-        self.add_geoloc()
+        nodes = []
+        if prefixes is None:
+            nodes = self.rtree.nodes()
+        else:
+            for prefix in prefixes:
+                rnode = self.rtree.search_best(prefix)
+                if rnode is not None:
+                    nodes.append(rnode)
+
+        self.add_rov(nodes)
+        self.add_geoloc(nodes)
 
 
-    def add_irr(self):
-        """Add IRR data to all prefixes in the table"""
+    def add_rov(self, nodes):
+        """Add RPKI, IRR, delegated data to all given nodes"""
 
-        for rnode in self.rtree:
+        for rnode in nodes:
 
-            if not 'info' in rnode.data:
-                rnode.data['info'] = {}
+            rov_data = self.rov.lookup(rnode.prefix)
+            rnode.data['irr'] = rov_data['irr']
+            rnode.data['rpki'] = rov_data['rpki']
+            rnode.data['delegated'] = rov_data['delegated']
 
-            # find country code
-            irr = self.rov.lookup(rnode.prefix)['irr'].get(rnode.prefix, {})
+            rov_data = self.rov.check(rnode.prefix, int(rnode.data['originasn']))
+            rnode.data['rov'] = rov_data
 
-            rnode.data['info']['irr'] = irr
+    def add_geoloc(self, nodes):
+        """Geolocate prefixes for all given nodes"""
 
-    def add_geoloc(self):
-        """Geolocate all prefixes in the table"""
-
-        for rnode in self.rtree:
-
-            if not 'info' in rnode.data:
-                rnode.data['info'] = {}
+        for rnode in nodes:
 
             # find country code
             ip = rnode.prefix.partition('/')[0]
             cc = self.gc.country(ip)
 
-            rnode.data['info']['country'] = cc
+            rnode.data['country'] = cc
 
     def prefix_info(self, prefix):
         """Return the computed info (geoloc/irr) for the given prefix"""
@@ -103,7 +111,7 @@ class BGPTable(object):
         if rnode is None:
             return {}
         else:
-            return rnode.data.get('info', {})
+            return rnode.data
 
     def list_peers(self):
         """Return the list of 1-hop peer ASes"""
@@ -137,16 +145,17 @@ class BGPTable(object):
                     continue
 
                 rnode = self.rtree.add(prefix)
-                rnode.data['as-path'] = cov_prefix.data['as-path']
+                rnode.data['aspath'] = cov_prefix.data['aspath']
+                rnode.data['originasn'] = cov_prefix.data['aspath'][-1]
 
     def list_aspaths(self):
         """Returns all prefixes and corresponding AS paths found in this routing
         table."""
 
         for node in self.rtree.nodes():
-            yield node.prefix, node.data['as-path']
+            yield node.prefix, node.data['aspath']
 
     def path(self, prefix):
 
         rnode = self.rtree.search_best(prefix)
-        return rnode.prefix, rnode.data['as-path']
+        return rnode.prefix, rnode.data['aspath']

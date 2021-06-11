@@ -57,9 +57,9 @@ sys.stderr.write('Adding selected prefixes\n')
 # Add selected prefixes if not globally rechable
 if args.prefixes is not None:
     rib.add_prefixes(weights.prefixes())
+    sys.stderr.write('Adding prefixes info\n')
+    rib.add_prefix_info(weights.prefixes())
 
-sys.stderr.write('Adding prefixes info\n')
-rib.add_prefix_info()
 
 # Create AS graph
 sys.stderr.write('Building AS graph\n')
@@ -98,22 +98,22 @@ def traffic():
         info = rib.prefix_info(prefix)
         flows[prefix] = {
                 'vol': sizeof_fmt(vol), 
-                'cc': info.get('country', 'ZZ'), 
-                'aspath': rib.path(prefix)[1],
-                'irr': info.get('irr', {}),
+                'info': info
                 }
 
-    # tmp
-    df = pd.DataFrame({
-        "Vegetables": ["Lettuce", "Cauliflower", "Carrots", "Lettuce", "Cauliflower", "Carrots"],
-        "Amount": [10, 15, 8, 5, 14, 25],
-        "City": ["London", "London", "London", "Madrid", "Madrid", "Madrid"]
-    })
+    return render_template('traffic-table.html', flows=flows) 
 
-    fig = px.bar(df, x="Vegetables", y="Amount", color="City", barmode="stack")
+@app.route('/peers')
+def peers():
 
-    graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    return render_template('traffic-table.html', flows=flows, graphJSON=graphJSON)
+    peers = {}
+    for asn in rib.list_peers():
+        peers[asn] = {
+                'name': 'UNK',
+                'vol': 0
+                }
+
+    return render_template('peers-table.html', peers=peers) 
 
 
 app.run(debug=True)
