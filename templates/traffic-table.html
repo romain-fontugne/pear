@@ -5,7 +5,18 @@
 {% endblock %}
 
 {% block body %}
-<h1>Traffic data</h1>
+<h1>Traffic data: {{ selected_router }}</h1>
+
+<div class="dropdown">
+  <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">
+    Select a router
+  </button>
+  <div class="dropdown-menu">
+      {% for router in router_names %}
+        <a class="dropdown-item" href="/traffic?router={{router}}">{{router}}</a>
+      {% endfor %}
+  </div>
+</div>
 
 <table id="trafficTable" class="table table-striped table-sm table-hover" width="100%">
     <thead>

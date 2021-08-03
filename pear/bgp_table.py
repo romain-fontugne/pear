@@ -1,67 +1,62 @@
-from mrtparse import *
+import arrow
+from bgpdumpy import BGPDump, TableDumpV2
 import radix
 import sys
 
 from rov import ROV
 from pear.geolite_city import GeoliteCity
 
+
 class BGPTable(object):
-    def __init__(self, mrt_fname, peer_as):
+    def __init__(self, peer_as, rov=None, gc=None):
         """Initialize BGP Table attributes"""
 
-        self.mrt_fname = mrt_fname
         self.main_as = str(peer_as)
-        self.main_as_idx = set()
         self.rtree = radix.Radix()
         self.peers = set()
 
-        self.rov = ROV()
-        self.rov.load_databases()
 
-        self.gc = GeoliteCity()
-        self.gc.load_database()
+        if rov is None:
+            self.rov = ROV()
+            self.rov.load_databases()
+        else: 
+            self.rov = rov
+
+        if gc is None:
+            self.gc = GeoliteCity()
+            self.gc.load_database()
+        else:
+            self.gc = gc
 
 
-    def load_bgp(self):
+    def load_bgp(self, mrt_fname):
         """Fetch BGP data and add AS paths to the radix tree"""
     
-        for entry in Reader(self.mrt_fname):
+        with BGPDump(mrt_fname) as bgp:
+            for entry in bgp:
 
-            # parse RIB entries
-            if ( entry.data['subtype'][1] == 'RIB_IPV4_UNICAST' 
-                or entry.data['subtype'][1] == 'RIB_IPV6_UNICAST' ):
+                # entry.body can be either be TableDumpV1 or TableDumpV2
+                if not isinstance(entry.body, TableDumpV2):
+                    continue  # I expect an MRT v2 table dump file
 
-                prefix = f"{entry.data['prefix']}/{entry.data['prefix_length']}"
-                as_path = []
-                recs = [rec 
-                            for rec in entry.data['rib_entries']
-                                if rec['peer_index'] in self.main_as_idx]
-                if len(recs)>1:
-                    print('more than one rec per prefix!\n',recs)
-                elif len(recs) > 0:
-                    rec = recs[0]
-                    # Get AS path
-                    path = [attribute 
-                            for attribute in rec['path_attributes']
-                            if attribute['type'][1] == 'AS_PATH'] 
-                    if path[0]['length']>0:
-                        # fetch the AS path
-                        as_path = path[0]['value'][0]['value']
+                # get a string representation of this prefix
+                prefix = f'{entry.body.prefix}/{entry.body.prefixLength}'
 
-                    # Add path to the radix tree
-                    rnode = self.rtree.add(prefix)
-                    as_path = self.clean_aspath(as_path)
-                    rnode.data['aspath'] = as_path 
-                    rnode.data['originasn'] = as_path[-1]
-                    if len(as_path) > 1:
-                        self.peers.add(as_path[1])
+                as_paths = [ route.attr.asPath
+                    for route in entry.body.routeEntries
+                    if route.attr.asPath.startswith(self.main_as)]
 
+                if not len(as_paths):
+                    continue
 
-            # parse peers list and get main peer indexes
-            elif entry.data['subtype'][1] == 'PEER_INDEX_TABLE':
-                for idx, peer in enumerate(entry.data['peer_entries']):
-                    if peer['peer_as'] == self.main_as:
-                        self.main_as_idx.add(idx)
+                # Add path to the tree
+                rnode = self.rtree.add(prefix)
+                as_path = self.clean_aspath(as_paths[0].split())
+                rnode.data['aspath'] = as_path 
+                rnode.data['originasn'] = as_path[-1]
+                if len(as_path) > 1:
+                    self.peers.add(as_path[1])
+
 
     def add_prefix_info(self, prefixes):
         """Add geoloc and IRR data to given prefixes or all prefixes 
@@ -75,7 +70,7 @@ class BGPTable(object):
                 rnode = self.rtree.search_best(prefix)
                 if rnode is not None:
                     nodes.append(rnode)
-
+        
         self.add_rov(nodes)
         self.add_geoloc(nodes)
 
@@ -99,8 +94,12 @@ class BGPTable(object):
             rnode.data['rpki'] = rov_data['rpki']
             rnode.data['delegated'] = rov_data['delegated']
 
-            rov_data = self.rov.check(rnode.prefix, int(rnode.data['originasn']))
-            rnode.data['rov'] = rov_data
+            
+            try:
+                rov_data = self.rov.check(rnode.prefix, int(rnode.data['originasn']))
+                rnode.data['rov'] = rov_data
+            except ValueError:
+                rnode.data['rov'] = {}
 
     def add_geoloc(self, nodes):
         """Geolocate prefixes for all given nodes"""
@@ -146,7 +145,7 @@ class BGPTable(object):
 
         for prefix in prefixes:
             prefix = prefix.strip()
-            if prefix not in self.rtree:
+            if self.rtree.search_exact(prefix) is None:
                 cov_prefix = self.rtree.search_best(prefix)
 
                 if cov_prefix is None:
@@ -174,3 +173,12 @@ class BGPTable(object):
 
         rnode = self.rtree.search_best(prefix)
         return rnode.prefix, rnode.data['aspath']
+
+
+if __name__ == '__main__':
+    import sys
+    import IPython
+
+    table = BGPTable(sys.argv[1], 2497)
+
+    IPython.embed()
