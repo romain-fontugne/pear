@@ -8,13 +8,69 @@
 {% block body %}
 <h1 class="h2">AS Graph</h1>
 <div id="chart" class="chart" style="min-height: 1024px;">
+<form>
+  <div class="slidecontainer">
+    <label for="minTraffic" class="form-label">Minimum displayed traffic: <span id="minTrafficDisplay"></span></label>
+    <input type="range" class="slider" id="minTrafficRange" min="0" max="1000000000" value="{{ min_traffic }}" name="min_traffic">
+  </div>
+<!--  <div class="slidecontainer">
+    <label for="maxTraffic" class="form-label">Max. traffic: <span id="maxTrafficDisplay"></span></label>
+    <input type="range" class="slider" id="maxTrafficRange" min="0" max="100000000000" value="{{ max_traffic }}" name="max_traffic">
+  </div>
+--!>
+  <button type="submit" class="btn btn-primary mb-3" >Filter</button>
+</form>
 {% endblock %}
 
 
 {% block footer %}
 <script type="text/javascript">
+    // Plot AS graph
     var graphs = {{asgraph | safe}};
     Plotly.plot('chart',graphs,{});        
+
+    // Display ranges (min/max) values
+    var SI_SYMBOL = ["", "k", "M", "G", "T", "P", "E"];
+
+    function abbreviateNumber(number){
+
+        // what tier? (determines SI symbol)
+        var tier = Math.log10(Math.abs(number)) / 3 | 0;
+
+        // if zero, we don't need a suffix
+        if(tier == 0) return number;
+
+        // get suffix and determine scale
+        var suffix = SI_SYMBOL[tier];
+        var scale = Math.pow(10, tier * 3);
+
+        // scale the number
+        var scaled = number / scale;
+
+        // format number and add suffix
+        return scaled.toFixed(1) + suffix;
+    }
+
+    // Min
+    var sliderMin = document.getElementById("minTrafficRange");
+    var outputMin = document.getElementById("minTrafficDisplay");
+    let defaultValue = document.get
+    outputMin.innerHTML = abbreviateNumber(sliderMin.value); // Display the default slider value
+
+    // Update the current slider value (each time you drag the slider handle)
+    sliderMin.oninput = function() {
+        outputMin.innerHTML = abbreviateNumber(this.value);
+    }
+    // Max
+    var slider = document.getElementById("maxTrafficRange");
+    var output = document.getElementById("maxTrafficDisplay");
+    output.innerHTML = abbreviateNumber(slider.value); // Display the default slider value
+
+    // Update the current slider value (each time you drag the slider handle)
+    slider.oninput = function() {
+        output.innerHTML = abbreviateNumber(this.value);
+    }
 </script>
+
 
 {% endblock %}
