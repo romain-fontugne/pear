@@ -81,4 +81,4 @@ def peers():
     return render_template('peers-table.html', peers=peers) 
 
 
-app.run(debug=True)
+app.run(debug=True, host="corwin.clip.iiji.jp")
