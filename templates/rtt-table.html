@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>RTT data</title>
+{% endblock %}
+
+{% block body %}
+<h1>RTT per country: {{ selected_country }}</h1>
+
+<div class="dropdown">
+  <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">
+    Select a country
+  </button>
+  <div class="dropdown-menu">
+      {% for country in traceroutes.keys() %}
+        <a class="dropdown-item" href="/rtt?country={{country}}">{{country}}</a>
+      {% endfor %}
+  </div>
+</div>
+
+<table id="rttTable" class="table table-striped table-sm table-hover" width="100%">
+    <thead>
+    <tr>
+        <th>ASN </th>
+        <th>Probe ID</th>
+        <th>AS path</th>
+        <th>Min. RTT</th>
+        <th>Med. RTT</th>
+        <th>Max. RTT</th>
+        <th>Nb. samples</th>
+    </tr>
+    </thead>
+    <tbody>
+        {% for probe, paths in traceroutes[selected_country]['probes'].items() %}
+            {% for aspath, stats in paths.items() %}
+                <tr>
+                    <td>{{ stats.asn }}</td>
+                    <td>{{ probe }}</td>
+                    <td> {{ aspath }} </td>
+                    <td> {{ stats.min }} </td>
+                    <td> {{ stats.med }} </td>
+                    <td> {{ stats.max }} </td>
+                    <td> {{ stats.nb_samples }} </td>
+                </tr>
+            {% endfor %}
+        {% endfor %}
+    </tbody>
+</table>
+
+<ul>
+{% for peer, stats in traceroutes[selected_country]['peers'].items() %}
+<li> {{ peer }}: median RTT = {{ stats['median'] }} ({{ stats['nb_samples'] }} samples)</li>
+{% endfor %}
+</ul>
+{% endblock %}
+
+{% block footer %}
+<script type="text/javascript">
+    $(document).ready(function () {
+        $('#rttTable').DataTable({
+            "paging": false,
+            "fnInitComplete": function () {
+                var myCustomScrollbar = document.querySelector('#rttTable_wrapper .dataTables_scrollBody');
+                var ps = new PerfectScrollbar(myCustomScrollbar);
+            },
+            "scrollY": 850,
+        });
+    $('.dataTables_length').addClass('bs-select');
+    });
+</script>
+{% endblock %}
