@@ -42,9 +42,13 @@ plotter = pear.make_graphs()
 # Views
 @app.route('/')
 def index():
-    min_traffic = request.args.get('min_traffic', 0)
+    min_traffic = request.args.get('min_traffic', plotter.minimum_traffic)
+    max_traffic = 1000000000
     plotter.plot( int(min_traffic) )
-    return render_template('index.html', asgraph=plotter.to_json())
+    return render_template('index.html', asgraph=plotter.to_json(),
+            min_traffic=min_traffic,
+            max_traffic=max_traffic
+            )
 
 @app.route('/routing')
 def routing():

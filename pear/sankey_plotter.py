@@ -23,6 +23,8 @@ class SankeyPlotter(object):
 
         self.colors = defaultdict(lambda: OTHER_COLOR)
 
+        self.minimum_traffic = 0
+
     def new_trace(self, visible=False):
         "Returns a new empty sankey trace"
 
@@ -116,6 +118,7 @@ class SankeyPlotter(object):
 
     def plot(self, minimum_traffic):
 
+        self.minimum_traffic = minimum_traffic
         data = []
         buttons = []
         # Add each trace to the figure and dropdown menu
