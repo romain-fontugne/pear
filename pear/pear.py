@@ -1,11 +1,15 @@
+import appdirs
 import sys
 from .as_graph import ASGraph
 from .bgp_table import BGPTable
 from .sankey_plotter import SankeyPlotter
 from .prefix_weights import PrefixWeights
+from .atlas_traceroute import AtlasTraceroute
 
 from rov import ROV
 from pear.geolite_city import GeoliteCity
+
+CACHE_DIR = appdirs.user_cache_dir('pear', 'IHR')
 
 def sizeof_fmt(num, suffix=''):
 
@@ -28,6 +32,7 @@ class Pear():
         self.ribs = {}
         self.flows = {}
         self.all_peers = set()
+        self.traceroutes = None
 
         self.rov = ROV()
         self.rov.load_databases()
@@ -35,6 +40,8 @@ class Pear():
         self.gc.load_database()
 
     def load(self, prefix_fnames, bgp_fnames):
+
+
         for prefix_fname in prefix_fnames:
             router_name = prefix_fname.rpartition('/')[2].rpartition('.')[0] 
             if self.first_router is None:
@@ -54,6 +61,11 @@ class Pear():
             self.ribs[router_name] = rib
             sys.stderr.write(f'Reading BGP data for {router_name}\n')
             rib.load_bgp(bgp_fname)
+
+            # Load things that need a RIB
+            if self.traceroutes is None:
+                self.traceroutes = AtlasTraceroute(self.ASN, rib)
+
             sys.stderr.write('Adding selected prefixes\n')
             # Add selected prefixes if not globally rechable
             rib.add_prefixes(weights.prefixes())
@@ -63,6 +75,8 @@ class Pear():
             rib.add_prefix_info(weights.prefixes())
 
             self.all_peers.update(rib.list_peers())
+
+
 
 
     def make_graphs(self):
@@ -132,4 +146,8 @@ class Pear():
 
         return list(self.ribs.keys())
 
+
+    def get_country_rtt(self):
+
+        return self.traceroutes.country_stats
 

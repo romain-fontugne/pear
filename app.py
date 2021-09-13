@@ -73,8 +73,17 @@ def traffic():
 @app.route('/peers')
 def peers():
 
-    pear.get_all_peers()
+    peers = pear.get_all_peers()
     return render_template('peers-table.html', peers=peers) 
+
+
+@app.route('/rtt')
+def rtt():
+
+    selected_country = request.args.get('country', None)
+    country_rtt = pear.get_country_rtt()
+    return render_template('rtt-table.html', traceroutes=country_rtt, 
+            selected_country=selected_country) 
 
 
 app.run()
