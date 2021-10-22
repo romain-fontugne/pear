@@ -67,7 +67,7 @@ class ASGraph(object):
                         data['weight'] += p0_weight*(distance**hop_power)
 
                         # add prefix info
-                        data['prefix_info'][p0] = f'{sizeof_fmt(p0_weight)}, {info["country"]}, {info["irr"].get("descr","-")}'#({info["delegated"].get("country")})'
+                        data['prefix_info'][p0] = f'{sizeof_fmt(p0_weight)}, {info["country"]}, {info["descr"]}'#({info["delegated"].get("country")})'
 
         # Compute node weights
         for node, node_data in self.graph.nodes(data=True):

@@ -1,10 +1,12 @@
 import appdirs
+from collections import defaultdict
 import sys
 from .as_graph import ASGraph
+from .as_name import ASName
+from .atlas_traceroute import AtlasTraceroute
 from .bgp_table import BGPTable
 from .sankey_plotter import SankeyPlotter
 from .prefix_weights import PrefixWeights
-from .atlas_traceroute import AtlasTraceroute
 
 from rov import ROV
 from pear.geolite_city import GeoliteCity
@@ -24,7 +26,7 @@ def sizeof_fmt(num, suffix=''):
 
 
 class Pear():
-    def __init__(self, ASN, weight_name):
+    def __init__(self, ASN, weight_name, atlas_msm_ids=[], cache_db=None):
         self.ASN = ASN
         self.weight_name = weight_name
 
@@ -32,16 +34,33 @@ class Pear():
         self.ribs = {}
         self.flows = {}
         self.all_peers = set()
-        self.traceroutes = None
-
-        self.rov = ROV()
-        self.rov.load_databases()
-        self.gc = GeoliteCity()
-        self.gc.load_database()
+        self.atlas_msm_ids = atlas_msm_ids
+        self.cache_db = cache_db
+        print('Loading AS names')
+        self.as_name = ASName(self.cache_db)
 
     def load(self, prefix_fnames, bgp_fnames):
 
+        # Match router names and MRT file names
+        router2mrt = {}
+        loaded_mrt = defaultdict(lambda:
+                    {
+                        'rib': None,
+                        'processed_routers': set(),
+                        'all_routers': set(),
+                        'prefixes': []
+                    }
+                )
+        for prefix_fname in prefix_fnames:
+            router_name = prefix_fname.rpartition('/')[2].rpartition('.')[0] 
 
+            mrt_fname = bgp_fnames[0]
+            if len(bgp_fnames) > 1:
+                mrt_fname = [fname for fname in bgp_fnames if router_name in fname][0]
+            router2mrt[router_name] = mrt_fname
+            loaded_mrt[mrt_fname]['all_routers'].add(router_name)
+
+        # Load traffic and BGP data
         for prefix_fname in prefix_fnames:
             router_name = prefix_fname.rpartition('/')[2].rpartition('.')[0] 
             if self.first_router is None:
@@ -51,36 +70,48 @@ class Pear():
             weights = PrefixWeights(prefix_fname, self.weight_name)
             self.flows[router_name] = weights
 
-            # Look for the corresponding RIB file
-            bgp_fname = bgp_fnames[0]
-            if len(bgp_fnames) > 1:
-                bgp_fname = [fname for fname in bgp_fnames if router_name in fname][0]
-
             # load routing data
-            rib = BGPTable( self.ASN, self.rov, self.gc )
+            mrt_fname = router2mrt[router_name] 
+            if loaded_mrt[mrt_fname]['rib'] is None:
+                rib = BGPTable( self.ASN, cache_db=self.cache_db)
+                sys.stderr.write(f'Reading BGP data for {router_name}\n')
+                rib.load_bgp(mrt_fname)
+                loaded_mrt[mrt_fname]['rib'] = rib
+
+            rib = loaded_mrt[mrt_fname]['rib']
             self.ribs[router_name] = rib
-            sys.stderr.write(f'Reading BGP data for {router_name}\n')
-            rib.load_bgp(bgp_fname)
 
-            # Load things that need a RIB
-            if self.traceroutes is None:
-                self.traceroutes = AtlasTraceroute(self.ASN, rib)
+            # Load things that need a full RIB
+            self.traceroutes = AtlasTraceroute(self.ASN, rib, 
+                    measurement_ids=self.atlas_msm_ids, cache_db=self.cache_db)
 
-            sys.stderr.write('Adding selected prefixes\n')
-            # Add selected prefixes if not globally rechable
-            rib.add_prefixes(weights.prefixes())
-            sys.stderr.write('Cleaning table\n')
-            rib.clean_table(weights.prefixes())
-            sys.stderr.write('Adding prefixes info\n')
-            rib.add_prefix_info(weights.prefixes())
+            
+            loaded_mrt[mrt_fname]['prefixes'].extend(weights.prefixes())
+            prefixes = loaded_mrt[mrt_fname]['prefixes']
+            loaded_mrt[mrt_fname]['processed_routers'].add(router_name)
+
+            # Clean RIB and cache if we are done with this RIB
+            if not rib.iscached and ( 
+                    len(loaded_mrt[mrt_fname]['processed_routers']) ==
+                    len(loaded_mrt[mrt_fname]['all_routers'])
+                    ):
+                prefixes = loaded_mrt[mrt_fname]['prefixes']
+                # Add selected prefixes if not globally rechable
+                sys.stderr.write('Adding selected prefixes\n')
+                rib.add_prefixes(prefixes)
+                sys.stderr.write('Cleaning table\n')
+                rib.clean_table(prefixes)
+                sys.stderr.write('Adding prefixes info\n')
+                rib.add_prefix_info(prefixes)
+
+                rib.cache_rib()
 
             self.all_peers.update(rib.list_peers())
 
 
 
-
     def make_graphs(self):
-        sp = SankeyPlotter(self.ASN)
+        sp = SankeyPlotter(self.ASN, self.as_name)
         for router_name, rib in self.ribs.items():
             weights = self.flows[router_name]
             # Create AS graph
@@ -107,28 +138,33 @@ class Pear():
         if router_name is None or router_name not in self.ribs:
             router_name = self.first_router
 
-        rib = self.ribs[router_name].list_aspaths()
+        rib = self.ribs[router_name].list_prefixes()
 
         return router_name, rib
 
-    def get_traffic(self, router_name):
+    def get_traffic(self, router_names, asn=None):
 
         traffic = {}
 
-        if router_name is None or router_name not in self.ribs:
-            router_name = self.first_router
+        for router_name in router_names:
+            if router_name is None or router_name not in self.ribs:
+                router_name = self.first_router
 
-        if router_name in self.ribs:
-            rib = self.ribs[router_name]
+            if router_name in self.ribs:
+                rib = self.ribs[router_name]
 
-            for prefix, vol in self.flows[router_name].raw_weights().items():
-                info = rib.prefix_info(prefix)
-                traffic[prefix] = {
-                        'vol': sizeof_fmt(vol), 
-                        'info': info
-                        }
+                if router_name not in traffic:
+                    traffic[router_name] = {}
 
-        return router_name, traffic
+                for prefix, vol in self.flows[router_name].raw_weights().items():
+                    info = rib.prefix_info(prefix)
+                    if asn is None or asn in info['aspath']:
+                        traffic[router_name][prefix] = {
+                                'vol': vol, #sizeof_fmt(vol), 
+                                'info': info
+                                }
+
+        return traffic
 
     def get_all_peers(self):
 
@@ -143,11 +179,12 @@ class Pear():
         return peers
 
     def get_router_names(self):
-
         return list(self.ribs.keys())
 
+    def get_country_rtt(self, cc, asn=None):
+        return self.traceroutes.country_stats(cc, asn)
 
-    def get_country_rtt(self):
+    def get_country_code(self):
+        return self.traceroutes.country_code()
 
-        return self.traceroutes.country_stats
 

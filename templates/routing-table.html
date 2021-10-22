@@ -19,18 +19,20 @@
 </div>
 
 <div class="table-responsive">
-<table id="routingTable" class="table table-striped table-sm">
+<table id="routingTable" class="table table-striped table-sm table-hover">
     <thead>
     <tr>
         <th>Prefix</th>
         <th>AS path</th>
+        <th style="max-width: 450px; word-wrap: break-word;">Description</th>
     </tr>
     </thead>
     <tbody>
-    {% for entry in rib %}
+    {% for prefix, data in rib %}
         <tr>
-            <td>{{ entry[0] }}</td>
-            <td>{{ entry[1] }}</td>
+            <td>{{ prefix }}</td>
+            <td>{{ ' - '.join(data['aspath']) }}</td>
+            <td>{{ data['descr'] }}</td>
         </tr>
     {% endfor %}
     </tbody>

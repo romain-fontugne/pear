@@ -12,17 +12,25 @@
     Select a country
   </button>
   <div class="dropdown-menu">
-      {% for country in traceroutes.keys() %}
+      {% for country in all_country_code %}
         <a class="dropdown-item" href="/rtt?country={{country}}">{{country}}</a>
       {% endfor %}
   </div>
 </div>
 
+<div class='row'>
+    <div class='col'>
+        <div id="rttPlot"></div>
+    </div>
+</div>
+
 <table id="rttTable" class="table table-striped table-sm table-hover" width="100%">
     <thead>
     <tr>
-        <th>ASN </th>
         <th>Probe ID</th>
+        <th>Country</th>
+        <th>ASN </th>
+        <th>router </th>
         <th>AS path</th>
         <th>Min. RTT</th>
         <th>Med. RTT</th>
@@ -31,27 +39,22 @@
     </tr>
     </thead>
     <tbody>
-        {% for probe, paths in traceroutes[selected_country]['probes'].items() %}
-            {% for aspath, stats in paths.items() %}
+        {% for pid, asn, country, aspath, af, router, nb_samples, min_rtt, med_rtt, max_rtt in traceroutes %}
                 <tr>
-                    <td>{{ stats.asn }}</td>
-                    <td>{{ probe }}</td>
+                    <td>{{ pid }}</td>
+                    <td>{{ country }}</td>
+                    <td>{{ asn }}</td>
+                    <td>{{ router }}</td>
                     <td> {{ aspath }} </td>
-                    <td> {{ stats.min }} </td>
-                    <td> {{ stats.med }} </td>
-                    <td> {{ stats.max }} </td>
-                    <td> {{ stats.nb_samples }} </td>
+                    <td> {{ min_rtt }} </td>
+                    <td> {{ med_rtt }} </td>
+                    <td> {{ max_rtt }} </td>
+                    <td> {{ nb_samples }} </td>
                 </tr>
-            {% endfor %}
         {% endfor %}
     </tbody>
 </table>
 
-<ul>
-{% for peer, stats in traceroutes[selected_country]['peers'].items() %}
-<li> {{ peer }}: median RTT = {{ stats['median'] }} ({{ stats['nb_samples'] }} samples)</li>
-{% endfor %}
-</ul>
 {% endblock %}
 
 {% block footer %}
@@ -59,13 +62,9 @@
     $(document).ready(function () {
         $('#rttTable').DataTable({
             "paging": false,
-            "fnInitComplete": function () {
-                var myCustomScrollbar = document.querySelector('#rttTable_wrapper .dataTables_scrollBody');
-                var ps = new PerfectScrollbar(myCustomScrollbar);
-            },
             "scrollY": 850,
         });
-    $('.dataTables_length').addClass('bs-select');
+    drawRtt('rttTable', 'rttPlot', '{{selected_country}}');
     });
 </script>
 {% endblock %}

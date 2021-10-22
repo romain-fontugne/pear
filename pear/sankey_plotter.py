@@ -5,6 +5,8 @@ import plotly
 from plotly.utils import PlotlyJSONEncoder
 from plotly.graph_objects import Figure, Sankey
 
+from .as_name import ASName
+
 OWN_AS, DIRECT_PEER, OTHER_COLOR = "gray", "green", "blue"
 
 def sizeof_fmt(num, suffix=''):
@@ -16,8 +18,9 @@ def sizeof_fmt(num, suffix=''):
 
 
 class SankeyPlotter(object):
-    def __init__(self, asn: int, pad=50) -> None:
+    def __init__(self, asn: int, as_name: ASName, pad=50) -> None:
         self.main_as = str(asn)
+        self.as_name = as_name
         self.pad = pad
         self.traces = {'all': self.new_trace(visible=True)}
 
@@ -33,7 +36,9 @@ class SankeyPlotter(object):
                 'node': {
                     'pad': self.pad,
                     'label': [],
-                    'color': []
+                    'color': [],
+                    'customdata': [],
+                    'hovertemplate': '%{label}<br />%{customdata} <br />%{value}<extra></extra>',
                     },
                 'link': {
                     'source': [],
@@ -58,6 +63,7 @@ class SankeyPlotter(object):
             if node not in trace['node_idx']:
                 trace['node_idx'][node] = len(trace['node']['label'])
                 trace['node']['label'].append(node)
+                trace['node']['customdata'].append(self.as_name.name(node))
                 trace['node']['color'].append(self.colors[node])
 
         ## Add links to the sankey
@@ -74,7 +80,6 @@ class SankeyPlotter(object):
             trace['stats']['node']['out'][n0] += data['weight']
             trace['stats']['node']['in'][n1] += data['weight']
 
-        
 
     def add_graph(self, graph, bgp_table, aliases={}):
         """Fetch BGP data and build the AS graph"""

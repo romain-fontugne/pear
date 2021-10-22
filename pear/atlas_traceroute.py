@@ -2,21 +2,25 @@ import appdirs
 import arrow
 from collections import defaultdict
 import os
-import json
-import requests
+import requests_cache
+from datetime import timedelta
+import socket
 import statistics
 import sys
 from progress.bar import Bar
 
+import sqlite3
+
 CACHE_DIR = appdirs.user_cache_dir('pear', 'IHR')+"/atlas/"
 URL_PROBE_INFO = "https://atlas.ripe.net/api/v2/probes/"
-URL_MSM = "https://atlas.ripe.net/api/v2/measurements/?target_asn={asn}&status=2&type={type}"
-CACHE_EXPIRATION = 60*60*24*7
+URL_MSM_SEARCH = "https://atlas.ripe.net/api/v2/measurements/?target_asn={asn}&status=2&type={type}"
+URL_MSM = "https://atlas.ripe.net/api/v2/measurements/"
+CACHE_EXPIRATION = 1 # days
 WINDOW_SIZE_DAYS = 1
 
 class AtlasTraceroute(object):
     def __init__(self, asn, bgp_table, cache_directory=CACHE_DIR, cache_expiration=CACHE_EXPIRATION,
-            window_size_days=WINDOW_SIZE_DAYS):
+            window_size_days=WINDOW_SIZE_DAYS, measurement_ids=[], cache_db=None):
         """Initialize object with given parameters:
             - asn: ASN used as a target in traceroutes
             - bgp_table: used to map IPs to ASNs
@@ -32,32 +36,52 @@ class AtlasTraceroute(object):
         self.cache_expiration = cache_expiration
         self.window_size_days = window_size_days
 
-        self.all_probes = self.probe_infos()
-        self.asn_probes = self.find_probes(asn=self.asn)
-        print(f'Found {len(self.asn_probes)} probes in AS{self.asn}')
-        self.traceroute_msms = []
-        self.find_measurements()
-        print(f'Found {len(self.traceroute_msms)} mesurements towards AS{self.asn}')
-        self.traceroutes = self.fetch_measurement_results()
-        self.country_stats = self.compute_country_stats()
+        self.dns = {}
+        
+        if cache_db is None:
+            self.cache_db = cache_directory+'pear.sql'
+        else:
+            self.cache_db = cache_db
 
-    def probe_infos(self, cached_data=True):
+        self.con = sqlite3.connect(self.cache_db)
+        self.cur = self.con.cursor()
+        try:
+            # Create table
+            self.cur.execute('''CREATE TABLE traceroutes
+               (pid integer, asn text, country text, as_path text, af integer, router text, nb_samples integer, min_rtt real, med_rtt real, max_rtt)''')
 
-        # Try to get data from cache
-        if os.path.exists(self.cache_directory+"/probe_info.json") and cached_data:
-            # Get probe information from cache
-            cache = json.load(open(self.cache_directory+"/probe_info.json","r"))
-            if (arrow.utcnow() - arrow.get(cache["timestamp"])).seconds > CACHE_EXPIRATION:
-                sys.stderr.write("Atlas probe cache expired!\n")
-            else:
-                return cache["probes"]
+            # Fetch traceroutes
+            self.all_probes = self.probe_infos()
+            self.asn_probes = self.find_probes(asn=self.asn)
+            print(f'Found {len(self.asn_probes)} probes in AS{self.asn}')
+            self.traceroute_msms = []
+            self.find_measurements(measurement_ids)
 
+            self.traceroutes = self.fetch_measurement_results()
+            # Compute stats and store in db
+            self.compute_traceroute_stats()
+
+        except sqlite3.OperationalError:
+            # The table already exists
+            print('Using cached traceroutes')
+
+        self.con.commit()
+        self.con.close()
+
+        # Keep a cursor open for reads
+        self.con = sqlite3.connect(self.cache_db, check_same_thread=False)
+        self.cur = self.con.cursor()
+
+
+    def probe_infos(self):
 
         # Fetch probe information from RIPE API
         url =  URL_PROBE_INFO
         bar = None
         probes = {}
-        with requests.Session() as session:
+        with requests_cache.CachedSession(self.cache_directory,
+                backend='filesystem',
+                expire_after=timedelta(days=CACHE_EXPIRATION)) as session:
 
             # Fetch all pages
             while url:
@@ -77,14 +101,6 @@ class AtlasTraceroute(object):
                 url = page['next']
             bar.finish()
 
-        # Save probe information to cache
-        fi = open(self.cache_directory+"/probe_info.json", "w")
-        json.dump({
-            "probes":probes, 
-            "timestamp":str(arrow.utcnow())
-            }, fi, indent=4)
-        fi.close()
-
         return probes
 
     def find_probes(self, asn=None):
@@ -101,26 +117,37 @@ class AtlasTraceroute(object):
         return selected_probes
 
 
-    def find_measurements(self):
+    def find_measurements(self, msm_ids):
         """Find IDs for ongoing Atlas measurement targeting selected ASN"""
 
-        url = URL_MSM.format(asn=self.asn, type="traceroute")
-        with requests.Session() as session:
-            # Fetch all pages
-            while url:
-                page = session.get(url).json()
-                self.traceroute_msms.extend(page["results"])
-                url = page['next']
+        with requests_cache.CachedSession(self.cache_directory,
+                backend='filesystem',
+                expire_after=timedelta(days=CACHE_EXPIRATION)) as session:
+            if msm_ids:
+                for id in msm_ids:
+                    url = f'{URL_MSM}{id}'
+                    page = session.get(url).json()
+                    self.traceroute_msms.append(page)
+
+            else:
+                url = URL_MSM_SEARCH.format(asn=self.asn, type="traceroute")
+                # Fetch all pages
+                while url:
+                    page = session.get(url).json()
+                    self.traceroute_msms.extend(page["results"])
+                    url = page['next']
+
+                print(f'Found {len(self.traceroute_msms)} mesurements towards AS{self.asn}')
 
 
-        #self.ping_msms = []
-        #url = URL_MSM.format(asn=self.asn, type="ping")
-        #with requests.Session() as session:
-            ## Fetch all pages
-            #while url:
-                #page = session.get(url).json()
-                #self.traceroute_msms.extend(page["results"])
-                #url = page['next']
+            #self.ping_msms = []
+            #url = URL_MSM.format(asn=self.asn, type="ping")
+            #with requests.Session() as session:
+                ## Fetch all pages
+                #while url:
+                    #page = session.get(url).json()
+                    #self.traceroute_msms.extend(page["results"])
+                    #url = page['next']
 
         
     def fetch_measurement_results(self):
@@ -129,8 +156,11 @@ class AtlasTraceroute(object):
         time_window = arrow.now().shift(days=-WINDOW_SIZE_DAYS).timestamp()
         traceroutes = {} 
 
-        with requests.Session() as session:
+        with requests_cache.CachedSession(self.cache_directory,
+                backend='filesystem',
+                expire_after=timedelta(days=CACHE_EXPIRATION)) as session:
             for msm in self.traceroute_msms:
+
                 page = session.get(msm['result'], params={"start": int(time_window)}).json()
 
                 for trace in page:
@@ -152,10 +182,10 @@ class AtlasTraceroute(object):
                         traceroutes[pid] = {
                             'pid': pid,
                             'country': cc,
-                            'as_path': defaultdict(list) 
+                            'dst_as_path': defaultdict(lambda: defaultdict(lambda: {'rtt':[]})) 
                         } 
 
-                    first_ip = None
+                    first_border_ip = None
                     aspath = []
                     try:
                         rnode = self.bgp_table.rtree.search_best(trace["from"])
@@ -163,6 +193,7 @@ class AtlasTraceroute(object):
                     except Exception as e:
                         print(trace["from"])
                         print(e)
+                        continue
 
                     ipversion = 'IPv4' if '.' in trace['from'] else 'IPv6'
 
@@ -185,59 +216,86 @@ class AtlasTraceroute(object):
                                     aspath.append(ip2asn)
 
                                 # keep rtt if first IP or last IP
-                                if ip2asn == self.asn:
-                                    if first_ip is None or first_ip == res["from"]:
-                                        first_ip = res["from"]
-                                        traceroutes[pid]["as_path"][ipversion+": "+" ".join(aspath)].append(res["rtt"])
+                                if ip2asn == self.asn or first_border_ip is not None:
+                                    if first_border_ip is None or first_border_ip == res["from"]:
+                                        first_border_ip = res["from"]
+                                        hostname = self.reversedns(res['from']) 
+                                        traceroutes[pid]["dst_as_path"][hostname][ipversion+": "+" ".join(aspath)]['rtt'].append(res["rtt"])
 
                                     else:
                                         # No need to read the end of the traceroute
                                         break
 
+        print('finished reading traceroutes')
         return traceroutes
 
-    def compute_country_stats(self):
-        """Compute RTT stats per country"""
+    def reversedns(self, ip):
+        """Find and cache the hostname corresponding to the given IP"""
 
-        countries = defaultdict(lambda: defaultdict(dict))
+        if ip not in self.dns:
+            try:
+                hostname = socket.gethostbyaddr(ip)[0]
+            except socket.herror:
+                hostname = ip
+            self.dns[ip] = hostname
 
-        peer_rtts = defaultdict(lambda: defaultdict(list))
+        return self.dns[ip]
+
+    def compute_traceroute_stats(self):
+        """Compute RTT stats min/med/max
+        """
+
+
         for pid, traces in self.traceroutes.items():
 
             country = traces['country']
-            probe_stats = {}
-            for aspath, rtts in traces['as_path'].items():
-                asns_aspath = aspath.split(' ')
-                ipversion = asns_aspath[0]
-                probe_asn = asns_aspath[1]
-                peer_asn = asns_aspath[-2]
 
-                probe_stats[aspath] = {
-                        'asn': probe_asn,
-                        'min': min(rtts),
-                        'med': statistics.median(rtts),
-                        'max': max(rtts),
-                        'nb_samples': len(rtts)
-                        }
+            for router, aspaths in traces['dst_as_path'].items():
+                for aspath, stats in aspaths.items(): 
+                    rtts = stats['rtt']
+                    asns_aspath = aspath.split(' ')
+                    probe_asn = asns_aspath[1]
+                    self.cur.execute(
+                            "INSERT INTO traceroutes VALUES (?,?,?,?,?,?,?,?,?,?)",
+                            (pid, probe_asn, country, " ".join(asns_aspath[1:]), 
+                                int(asns_aspath[0][-2]), router, len(rtts), 
+                                min(rtts), statistics.median(rtts), max(rtts)))
 
-                peer_rtts[traces['country']][ipversion+peer_asn].append(rtts)
-
-                if ipversion+peer_asn in countries[country]['peers']:
-                    countries[country]['peers'][ipversion+peer_asn]['rtts'].extend(rtts)
-                else:
-                    countries[country]['peers'][ipversion+peer_asn] = {'rtts':list(rtts)}
-
-
-            countries[country]['probes'][pid] = probe_stats 
+                    #if ipversion+peer_asn not in countries[country]['peers']:
+                        #countries[country]['peers'][ipversion+peer_asn] = defaultdict(lambda: {'rtts':list()})
+                    #countries[country]['peers'][ipversion+peer_asn][router]['rtts'].extend(rtts)
 
         # Compute stats per country and peer
-        for country, types in countries.items():
-            for stats in types['peers'].values():
-                stats['median'] = statistics.median(stats['rtts'])
-                stats['nb_samples'] = len(stats['rtts'])
+        #for country, types in countries.items():
+            #for router_stats in types['peers'].values():
+                #for stats in router_stats.values():
+                    #stats['med'] = statistics.median(stats['rtts'])
+                    #stats['nb_samples'] = len(stats['rtts'])
 
-        return countries
+        self.con.commit()
 
+    def country_stats(self, cc, asn=None):
+
+
+        asn_where = ''
+        # Call may come from a different thread, create a new connection  
+        if cc is None:
+            if asn is not None:
+                asn_where = f" WHERE  as_path LIKE '% {asn}%' OR as_path LIKE '%{asn} %' "
+
+            self.cur.execute("select * from traceroutes "+asn_where,)
+        else:
+            if asn is not None:
+                asn_where = f" AND ( as_path LIKE '% {asn}%' OR as_path LIKE '%{asn} %' ) "
+            self.cur.execute("select * from traceroutes where country = ? "+asn_where, (cc,))
+
+        return self.cur.fetchall()
+        
+    def country_code(self):
+
+        # Call may come from a different thread, create a new connection  
+        self.cur.execute("select distinct(country) from traceroutes")
+        return [cc[0] for cc in self.cur.fetchall()]
 
 
 if __name__ == '__main__':
