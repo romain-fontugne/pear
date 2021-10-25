@@ -414,7 +414,7 @@ function drawTraffic(trafficTable, trafficPlot, agg_column) {
     console.log('plotting sunburst')
   trafficPlot = document.getElementById(trafficPlot);
   var layout = { 
-    margin: {l:10, r:10, t:10, b:10},
+    margin: {l:10, r:10, t:30, b:30},
   }
   Plotly.newPlot(trafficPlot, [trafficData], layout)
     console.log('finished plotting')

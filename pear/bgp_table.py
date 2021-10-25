@@ -110,7 +110,6 @@ class BGPTable(object):
             if node.prefix in d['irr']:
                 try: 
                     descr = next(iter(d['irr'][node.prefix].values()))[0]['descr'] 
-                    print('description: ', descr)
                 except Exception as e:
                     print('ERROR!', e)
                     pass

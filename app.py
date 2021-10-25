@@ -174,4 +174,4 @@ def rtt():
             ) 
 
 
-app.run(debug=True)
+app.run()
