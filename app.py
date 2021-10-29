@@ -23,6 +23,8 @@ parser.add_argument('--atlas_msm', default=[], nargs='+',
         help="Atlas traceroute measurement IDs to use of RTT results"),
 parser.add_argument('-d','--db', default=None, 
         help="SQLite database to cache computed data"),
+parser.add_argument('--serverless', action='store_true',
+        help="Compute database if needed, don't start the web server."),
 args = parser.parse_args()
 
 # Initiate Flask app
@@ -174,4 +176,5 @@ def rtt():
             ) 
 
 
-app.run()
+if not args.serverless:
+    app.run()
