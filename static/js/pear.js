@@ -258,11 +258,88 @@ function findIndexes(cells){
     idx = {}
 
     for(var i=0; i<cells.length; i++){
-        idx[cells[i].textContent.toLowerCase().trim()] = i;
+        idx[cells[i].innerText.toLowerCase().trim()] = i;
     } 
 
     return idx
 }
+
+const MULT = {
+    'kilobyte':  1000,
+    'megabyte':  1000 ** 2,
+    'gigabyte':  1000 ** 3,
+    'terabyte':  1000 ** 4,
+    'petabyte':  1000 ** 5,
+    'exabyte':   1000 ** 6,
+    'zetabyte':  1000 ** 7,
+    'yottabyte': 1000 ** 8,
+    'kb': 1000,
+    'mb': 1000**2,
+    'gb': 1000**3,
+    'tb': 1000**4,
+    'pb': 1000**5,
+    'eb': 1000**6,
+    'zb': 1000**7,
+    'yb': 1000**8,
+    'k': 1000,
+    'm': 1000**2,
+    'g': 1000**3,
+    't': 1000**4,
+    'p': 1000**5,
+    'e': 1000**6,
+    'z': 1000**7,
+    'y': 1000**8,
+}
+
+// Convert human readable format to number (e.g. 1K to 1000)
+function short2number(value){
+    if( ! isNaN(value) ){
+        return Number(value)
+    }
+
+    for( var suffix in MULT ){
+        clean_value = value.toLowerCase().trim()
+        if( clean_value.endsWith(suffix) ){
+            var val_num = Number(clean_value.slice(0, -suffix.length) * MULT[suffix])
+            return val_num
+        }
+    }
+
+    return Number(value)
+}
+
+/**
+ * Format bits as human-readable text.
+ * 
+ * @param value Number of bits or bytes.
+ * @param si True to use metric (SI) units, aka powers of 1000. False to use 
+ *           binary (IEC), aka powers of 1024.
+ * @param dp Number of decimal places to display.
+ * 
+ * @return Formatted string.
+ */
+function number2short(value, si=true, dp=1) {
+  const thresh = si ? 1000 : 1024;
+
+  if (Math.abs(value) < thresh) {
+    return value ;
+  }
+
+  const units = si 
+    ? ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'] 
+    : ['Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi', 'Yi'];
+  let u = -1;
+  const r = 10**dp;
+
+  do {
+    value /= thresh;
+    ++u;
+  } while (Math.round(Math.abs(value) * r) / r >= thresh && u < units.length - 1);
+
+
+  return value.toFixed(dp) + units[u];
+}
+
 
 // Retrieve traffic data from table
 function trafficSunburst(table, agg_column) {
@@ -272,63 +349,82 @@ function trafficSunburst(table, agg_column) {
     type: "sunburst",
     ids: [],
     labels: [],
+    text: [],
     parents: [],
     values: [],
-    branchvalues: 'total'
+    branchvalues: 'total',
+    hoverinfo: 'label+text',
+    textinfo: 'label'
   }
 
-  table_idx = findIndexes(table.rows[0].cells)
+  table_idx = findIndexes(table.columns().header())
+    console.log(table_idx)
 
+  var rows = table.data()
   var vol_threshold = 0
-  if(table.rows.length>1000){
+  if(rows.length>1000){
     vol_threshold = 10000000;
   }
 
-  for (var i = 1; i < table.rows.length; i++) {
-    let router = table.rows[i].cells[table_idx['router']].textContent.trim();
-    let key = table.rows[i].cells[table_idx[agg_column]].textContent.trim();
-    let vol = parseInt(table.rows[i].cells[table_idx['traffic volume']].textContent.trim());
-    let prefix = table.rows[i].cells[table_idx['prefix']].textContent.toLowerCase().trim()
+    console.log(agg_column)
+  // Read the table
+  for(var i = 0; i < rows.length; i++){
 
-    
-    if(vol > vol_threshold){
+    let row = rows[i];
+    let router = row[table_idx['router']].trim();
+    let key = row[table_idx[agg_column]].trim();
+    let key_name = row[table_idx[agg_column+' name']].trim();
+    let vol_short = row[table_idx['traffic volume']].trim();
+    let vol_value = short2number(vol_short);
+    let prefix = row[table_idx['prefix']].toLowerCase().trim()
+    let prefix_desc = row[table_idx['description']].trim()
+
+    if(vol_value > vol_threshold){
         data["ids"].push( router+key+prefix)
         data["parents"].push( router+key ); 
         data["labels"].push( prefix ); 
-        data["values"].push( vol ); 
+        data["text"].push( prefix_desc + '<br>' + vol_short); 
+        data["values"].push( vol_value ); 
     }
 
     if(router+key in router_key){
-            router_key[router+key].vol += vol; 
+            router_key[router+key].vol += vol_value; 
         }
     else{
             router_key[router+key] = {
-                vol:vol,
+                vol:vol_value,
                 key: key,
+                key_name: key_name,
                 router: router
             }
     }
 
     if(router in routers){
-            routers[router] += vol; 
+            routers[router] += vol_value; 
         }
     else{
-            routers[router] = vol; 
+            routers[router] = vol_value; 
         }
   }
 
+  // add aggregations to the graph (country or ASes)
   for(const rkey in router_key){
     data['ids'].push(rkey)
     data['labels'].push(router_key[rkey].key)
+    let vol_short = number2short(router_key[rkey].vol)
+    data['text'].push( router_key[rkey].key_name + '<br>' + vol_short)
     data['parents'].push(router_key[rkey].router)
     data['values'].push(router_key[rkey].vol)
   }
 
+  // add root (routers)
   for(const router in routers){
     data['ids'].push(router)
     data['labels'].push(router)
     data['parents'].push('')
     data['values'].push(routers[router])
+    let vol_short = number2short(routers[router])
+    data['text'].push(vol_short)
   }
 
   return data;
@@ -337,16 +433,18 @@ function trafficSunburst(table, agg_column) {
 // Retrieve traffic data from table
 function rttBoxplot(table, selected_country) {
   traces = {}
-  table_idx = findIndexes(table.rows[0].cells)
+  table_idx = findIndexes(table.columns().header())
+  var rows = table.data()
     
-  for (var i = 1; i < table.rows.length; i++) {
-    let country = table.rows[i].cells[table_idx['country']].textContent.trim();
+  for (var i = 1; i < rows.length; i++) {
+    let row = rows[i]
+    let country = row[table_idx['country']].trim();
     if(country == selected_country || selected_country == 'All'){
-        let rtt = parseFloat(table.rows[i].cells[5].textContent.trim());
+        let rtt = parseFloat(row[table_idx['min. rtt']].trim());
 
         // Plot ASN if a country is selected
         var agg = getCountryName(country);
-        if(selected_country == country) agg = 'AS'+table.rows[i].cells[table_idx['asn']].textContent.trim();
+        if(selected_country == country) agg = 'AS'+row[table_idx['asn']].trim();
 
         if(agg in traces){
             traces[agg]['x'].push( rtt )
@@ -369,47 +467,9 @@ function rttBoxplot(table, selected_country) {
   return traces_arr;
 }
 
-// Retrieve traffic data from table
-function rttDotplot(table, selected_country) {
-  var data = { 
-    type: 'scatter',
-    mode: 'markers',
-    x: [],
-    y: [],
-    marker: {
-        color: 'rgba(156, 165, 196, 0.35)',
-        line: {
-        color: 'rgba(156, 165, 196, 1.0)',
-        width: 1,
-        },
-        symbol: 'circle',
-        size: 12
-    }
-  };
-
-  table_idx = findIndexes(table.rows[0].cells)
-    
-  for (var i = 1; i < table.rows.length; i++) {
-    let country = table.rows[i].cells[table_idx['country']].textContent.trim();
-    if(country == selected_country || selected_country == 'All'){
-        let rtt = parseFloat(table.rows[i].cells[5].textContent.trim());
-        data["x"].push( rtt ); 
-
-        // Plot ASN if a country is selected
-        var agg = getCountryName(country);
-        if(selected_country == country) agg = 'AS'+table.rows[i].cells[table_idx['asn']].textContent.trim();
-
-        data["y"].push( agg );
-    }
-  }
-
-  return data;
-}
-
 function drawTraffic(trafficTable, trafficPlot, agg_column) {
-    console.log('reading data')
   var trafficData = trafficSunburst(
-      document.getElementById(trafficTable), agg_column.toLowerCase().trim()
+      trafficTable, agg_column.toLowerCase().trim()
   );
     console.log('plotting sunburst')
   trafficPlot = document.getElementById(trafficPlot);
@@ -421,8 +481,7 @@ function drawTraffic(trafficTable, trafficPlot, agg_column) {
 }
 
 function drawRtt(rttTable, rttPlot, country) {
-  //var rttData = rttDotplot(document.getElementById(rttTable), country);
-  var rttData = rttBoxplot(document.getElementById(rttTable), country);
+  var rttData = rttBoxplot(rttTable, country);
   plotDiv = document.getElementById(rttPlot);
   //let nb_countries = new Set(rttData.y).size
   var layout ={
@@ -452,3 +511,104 @@ function drawRtt(rttTable, rttPlot, country) {
   
   Plotly.newPlot(plotDiv, rttData, layout)
 }
+
+// Sorting function for shorthand notations (e.g. 1M)
+jQuery.fn.dataTableExt.oSort['traffic-asc'] = function(x,y) {
+    x = short2number(x);
+    y = short2number(y);
+    return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+};
+
+jQuery.fn.dataTableExt.oSort['traffic-desc'] = function(x,y) {
+    x = short2number(x);
+    y = short2number(y);
+    return ((x < y) ? 1 : ((x > y) ? -1 : 0));
+};
+
+/* When the user clicks on the button,
+toggle between hiding and showing the dropdown content */
+function showHide(elem_id) {
+  document.getElementById(elem_id).classList.toggle("show");
+}
+
+function filterFunction(elem_input, elem_list) {
+  var input, filter, ul, li, a, i;
+  input = document.getElementById(elem_input);
+  filter = input.value.toUpperCase();
+  div = document.getElementById(elem_list);
+  a = div.getElementsByTagName("a");
+  for (i = 0; i < a.length; i++) {
+    txtValue = a[i].textContent || a[i].innerText;
+    if (txtValue.toUpperCase().indexOf(filter) > -1) {
+      a[i].style.display = "";
+    } else {
+      a[i].style.display = "none";
+    }
+  }
+}
+
+/* Rendering functions for datatables*/
+function renderASN(data, type, row, meta){
+    if ( type === "display" )
+    {
+        return '<a href="/as_details?asn='+data+'">'+data+'</a>'
+    }
+    return data
+}
+
+function renderCountry(data, type, row, meta){
+    if ( type === "display" )
+    {
+        return '<a href="/country?cc='+data+'">'+isoCountries[data]+'</a>'
+    }
+    return data
+}
+
+function renderRouter(data, type, row, meta){
+    if ( type === "display" )
+    {
+        return '<a href="/traffic?router='+data+'">'+data+'</a>'
+    }
+    return data
+}
+
+function renderTraffic(data, type, row, meta){
+    if ( type === "display" )
+    {
+        return data+'bps'
+    }
+    return data
+}
+
+function renderAtlasProbe(data, type, row, meta){
+    if ( type === "display" )
+    {
+        return '<a href="https://atlas.ripe.net/probes/'+data+'" target="_blank"> PB'+data+'</a>'
+    }
+    return data
+}
+
+function renderASpath(data, type, row, meta){
+    if ( type === "display" )
+    {
+        var aPath = '';
+        let asns = data.split(' ')
+
+        for(var i=0; i<asns.length; i++){
+
+            let asn = asns[i]
+
+            if(isNaN(asn)){ 
+                aPath += asn+' '
+            }
+            else{
+                aPath += renderASN(asn)+' '
+            }
+
+        }
+        return aPath
+    }
+    return data
+}
+
+

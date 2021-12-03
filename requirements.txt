@@ -2,6 +2,7 @@ arrow
 plotly
 networkx
 geoip2
+iso3166
 py-radix
 rov
 Flask-BasicAuth

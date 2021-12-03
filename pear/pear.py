@@ -1,5 +1,6 @@
 import appdirs
 from collections import defaultdict
+from iso3166 import countries
 import sys
 from .as_graph import ASGraph
 from .as_name import ASName
@@ -14,14 +15,10 @@ from pear.geolite_city import GeoliteCity
 CACHE_DIR = appdirs.user_cache_dir('pear', 'IHR')
 
 def sizeof_fmt(num, suffix=''):
-
-    if isinstance(num, str):
-        return num
-
     for unit in ['','K','M','G','T','P','E','Z']:
-        if abs(num) < 1024.0:
+        if abs(num) < 1000.0:
             return "%3.1f%s%s" % (num, unit, suffix)
-        num /= 1024.0
+        num /= 1000.0
     return "%.1f%s%s" % (num, 'Y', suffix)
 
 
@@ -142,7 +139,7 @@ class Pear():
 
         return router_name, rib
 
-    def get_traffic(self, router_names, asn=None):
+    def get_traffic(self, router_names, asn=None, country=None):
 
         traffic = {}
 
@@ -158,9 +155,18 @@ class Pear():
 
                 for prefix, vol in self.flows[router_name].raw_weights().items():
                     info = rib.prefix_info(prefix)
-                    if asn is None or asn in info['aspath']:
+
+                    # Add country and AS names
+                    info['country_name'] = ''
+                    if info['country'] is not None:
+                        info['country_name'] = countries.get(info['country']).name
+                    info['originasn_name'] = self.as_name.name(info['originasn'])
+
+                    if( (asn is None or asn in info['aspath']) 
+                            and ( country is None or country == info['country']) ):
+
                         traffic[router_name][prefix] = {
-                                'vol': vol, #sizeof_fmt(vol), 
+                                'vol': sizeof_fmt(vol), 
                                 'info': info
                                 }
 
@@ -169,7 +175,6 @@ class Pear():
     def get_all_peers(self):
 
         peers = {}
-
         for asn in self.all_peers:
             peers[asn] = {
                     'name': 'UNK',
@@ -184,7 +189,18 @@ class Pear():
     def get_country_rtt(self, cc, asn=None):
         return self.traceroutes.country_stats(cc, asn)
 
-    def get_country_code(self):
-        return self.traceroutes.country_code()
+    def get_countries(self, data_type='all'):
+        ccs = set()
+        if data_type in ['all', 'traceroute']: 
+            ccs.update( self.traceroutes.country_code() )
+
+        if data_type in ['all', 'traffic']: 
+            for rib in self.ribs.values():
+                ccs.update( rib.country_codes() )
+
+        if None in ccs:
+            ccs.remove(None)
+
+        return {cc: countries.get(cc).name for cc in sorted(ccs)}
 
 

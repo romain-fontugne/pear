@@ -1,6 +1,7 @@
 import argparse
 import os
 import json
+from iso3166 import countries
 
 from flask import Flask, render_template
 from flask import request
@@ -47,22 +48,27 @@ pear.load(args.prefixes, args.bgp_data)
 plotter = pear.make_graphs()
 
 def search(keyword):
-    if keyword.startswith('AS'):
-        keyword = keyword[2:]
+    try:
+        if keyword.startswith('AS') and int(keyword[2:]):
+            return as_details( keyword[2:] )
+        if int(keyword):
+            return as_details( keyword )
+    except:
+        pass
 
     try:
-        int(keyword)
+       return country( countries.get(keyword).alpha2 )
     except:
-        return index()
-
-    return as_details(keyword)
+        pass
+        
+    return index(no_search=True)
 
 
 # Views
 @app.route('/')
-def index():
+def index(no_search=False):
 
-    if 'search' in request.args:
+    if 'search' in request.args and not no_search:
         return search(request.args.get('search'))
 
     min_traffic = request.args.get('min_traffic', plotter.minimum_traffic)
@@ -132,15 +138,8 @@ def as_details(asn=None):
         asn = request.args.get('asn', None)
 
     all_routers = pear.get_router_names() 
-    selected_router = request.args.get('router')
-    router_names = []
-    if selected_router is None or selected_router == 'All':
-        selected_router = 'All'
-        router_names = all_routers
-    else:
-        router_names = [selected_router]
 
-    traffic = pear.get_traffic(router_names, asn)
+    traffic = pear.get_traffic(all_routers, asn=asn)
     selected_country = request.args.get('country', None)
     country_rtt = pear.get_country_rtt(selected_country, asn)
     
@@ -149,14 +148,39 @@ def as_details(asn=None):
 
     return render_template('as.html', 
             flows=traffic,
-            router_names=routers_list,
-            selected_router=selected_router,
             asn=asn,
             as_name=pear.as_name.name(asn),
             traceroutes=country_rtt, 
-            all_country_code=pear.get_country_code(),
+            all_country_code=pear.get_countries(),
             selected_country=selected_country
             ) 
+
+@app.route('/country')
+def country(cc=None):
+
+    if cc is None:
+        if 'search' in request.args:
+            return search(request.args.get('search'))
+
+        cc = request.args.get('cc', None)
+
+    country_name = ''
+    if cc is not None:
+        country_name = countries.get(cc).name
+
+    all_routers = pear.get_router_names() 
+
+    traffic = pear.get_traffic(all_routers, country=cc)
+    country_rtt = pear.get_country_rtt(cc)
+    
+    return render_template('country.html', 
+            flows=traffic,
+            cc=cc,
+            country_name=country_name,
+            traceroutes=country_rtt, 
+            all_country_code=pear.get_countries()
+            ) 
+
 
 @app.route('/rtt')
 def rtt():
@@ -171,10 +195,10 @@ def rtt():
         selected_country = 'All'
     return render_template('rtt-table.html', 
             traceroutes=country_rtt, 
-            all_country_code=pear.get_country_code(),
+            all_country_code=pear.get_countries('traceroute'),
             selected_country=selected_country
             ) 
 
 
 if not args.serverless:
-    app.run()
+    app.run(debug=True)
