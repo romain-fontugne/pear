@@ -60,11 +60,33 @@
 {% block footer %}
 <script type="text/javascript">
     $(document).ready(function () {
-        $('#rttTable').DataTable({
+        var rttTable = $('#rttTable').DataTable({
             "paging": false,
             "scrollY": 850,
+            columnDefs: [ 
+                {
+                    targets: [ 0 ],
+                    render: renderAtlasProbe
+                },
+                {
+                    targets: [ 1 ],
+                    render: renderCountry
+                },
+                {
+                    targets: [ 3 ],
+                    render: renderRouter
+                },
+                {
+                    targets: [ 2 ],
+                    render: renderASN
+                },
+                {
+                    targets: [ 4 ],
+                    render: renderASpath
+                },
+            ]
         });
-    drawRtt('rttTable', 'rttPlot', '{{selected_country}}');
+    drawRtt(rttTable, 'rttPlot', '{{selected_country}}');
     });
 </script>
 {% endblock %}

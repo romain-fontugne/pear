@@ -1,48 +1,38 @@
 import pandas as pd
 
 # it doesn't really matters if it is bytes or bits
-def convert_size_to_bytes(size_str):
-    """Convert human filesizes to bytes.
-
-    Special cases:
-     - singular units, e.g., "1 byte"
-     - byte vs b
-     - yottabytes, zetabytes, etc.
-     - with & without spaces between & around units.
-     - floats ("5.2 mb")
-
-    To reverse this, see hurry.filesize or the Django filesizeformat template
-    filter.
+def convert_notation_to_number(size_str):
+    """Convert human shorthand notations to numbers (e.g. 1k to 1000).
 
     :param size_str: A human-readable string representing a file size, e.g.,
-    "22 megabytes".
-    :return: The number of bytes represented by the string.
+    "22 M".
+    :return: The number represented by the string.
     """
     multipliers = {
-        'kilobyte':  1024,
-        'megabyte':  1024 ** 2,
-        'gigabyte':  1024 ** 3,
-        'terabyte':  1024 ** 4,
-        'petabyte':  1024 ** 5,
-        'exabyte':   1024 ** 6,
-        'zetabyte':  1024 ** 7,
-        'yottabyte': 1024 ** 8,
-        'kb': 1024,
-        'mb': 1024**2,
-        'gb': 1024**3,
-        'tb': 1024**4,
-        'pb': 1024**5,
-        'eb': 1024**6,
-        'zb': 1024**7,
-        'yb': 1024**8,
-        'k': 1024,
-        'm': 1024**2,
-        'g': 1024**3,
-        't': 1024**4,
-        'p': 1024**5,
-        'e': 1024**6,
-        'z': 1024**7,
-        'y': 1024**8,
+        'kilobyte':  1000,
+        'megabyte':  1000 ** 2,
+        'gigabyte':  1000 ** 3,
+        'terabyte':  1000 ** 4,
+        'petabyte':  1000 ** 5,
+        'exabyte':   1000 ** 6,
+        'zetabyte':  1000 ** 7,
+        'yottabyte': 1000 ** 8,
+        'kb': 1000,
+        'mb': 1000**2,
+        'gb': 1000**3,
+        'tb': 1000**4,
+        'pb': 1000**5,
+        'eb': 1000**6,
+        'zb': 1000**7,
+        'yb': 1000**8,
+        'k': 1000,
+        'm': 1000**2,
+        'g': 1000**3,
+        't': 1000**4,
+        'p': 1000**5,
+        'e': 1000**6,
+        'z': 1000**7,
+        'y': 1000**8,
     }
 
     if isinstance(size_str, int) or isinstance(size_str, float):
@@ -50,13 +40,9 @@ def convert_size_to_bytes(size_str):
 
     for suffix in multipliers:
         size_str = size_str.lower().strip().strip('s')
-        if size_str.lower().endswith(suffix):
-            return int(float(size_str[0:-len(suffix)]) * multipliers[suffix])
-    else:
-        if size_str.endswith('b'):
-            size_str = size_str[0:-1]
-        elif size_str.endswith('byte'):
-            size_str = size_str[0:-4]
+        if size_str.endswith(suffix):
+            return float(size_str[0:-len(suffix)] * multipliers[suffix])
+
     return int(size_str)
 
 class PrefixWeights(object):
@@ -72,10 +58,11 @@ class PrefixWeights(object):
         self.prefix_weights = None
         if self.dataset is not None and weight_column in self.dataset.columns:
             # convert units
-            self.dataset['__weights__'] = self.dataset[weight_column].apply(convert_size_to_bytes)
+            self.dataset['__weights__'] = self.dataset[weight_column].apply(convert_notation_to_number)
 
     def raw_weights(self):
         return dict(zip(self.dataset['prefix'], self.dataset[self.weight_column]))
 
     def prefixes(self):
         return self.dataset['prefix']
+

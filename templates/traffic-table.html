@@ -32,27 +32,31 @@
     <thead>
     <tr>
         <th>Router</th>
-        <th>Origin ASN</th>
+        <th>Origin AS</th>
         <th>Prefix</th>
         <th>Traffic Volume</th>
         <th>Country</th>
         <th>AS path</th>
         <th>Description</th>
+        <th>Country Name</th>
+        <th>Origin AS Name</th>
     </tr>
     </thead>
     <tbody>
     {% for router_name, traffic in flows.items() %}
-      {% for prefix, values in traffic.items() %}
+      {% for prefix, data in traffic.items() %}
         <tr>
             <td>{{ router_name }}</td>
-            <td>AS{{ values.info.originasn }}</td>
+            <td>AS{{ data.info.originasn }}</td>
             <td>{{ prefix }}</td>
-            <td>{{ values.vol }}</td>
-            <td>{{ values.info.country }}</td>
+            <td>{{ data.vol }}</td>
+            <td>{{ data.info.country }}</td>
             <td>
-                {% for asn in values.info.aspath %}{{ asn }}&nbsp;&nbsp;{% endfor %}
+                {% for asn in data.info.aspath %}{{ asn }}&nbsp;&nbsp;{% endfor %}
             </td>
-            <td> {{ values.info.descr }} </td>
+            <td> {{ data.info.descr }} </td>
+            <td>{{ data.info.country_name }}</td>
+            <td>{{ data.info.originasn_name }}</td>
         </tr>
       {% endfor %}
     {% endfor %}
@@ -64,20 +68,42 @@
 {% block footer %}
 <script type="text/javascript">
     $(document).ready(function () {
-        var table = $('#trafficTable').DataTable({
+        var trafficDataTable = $('#trafficTable').DataTable({
             "paging": false,
             "searchDelay": 750,
-            "drawCallback": function () {
-            },
-            "fnInitComplete": function () { },
             "scrollY": 850,
+            columnDefs: [
+                {
+                    targets: [ 0 ],
+                    render: renderRouter
+                },
+                {
+                    targets: [ 1 ],
+                    render: renderASN
+                },
+                {
+                    targets: [ 4 ],
+                    render: renderCountry
+                },
+                {
+                    targets: [ 5 ],
+                    render: renderASpath
+                },
+                {
+                    targets: [ 7, 8 ],
+                    visible: false,
+                },
+                { 
+                    targets: [ 3 ],
+                    type: "traffic",
+                    render: renderTraffic
+                }
+            ],
         });
-    $('.dataTables_length').addClass('bs-select');
+        $('.dataTables_length').addClass('bs-select');
 
-    console.log('start drawing')
-    drawTraffic('trafficTable', 'trafficASNPlot', 'Origin ASN');
-    console.log('second drawing')
-    drawTraffic('trafficTable', 'trafficCountryPlot', 'Country');
+        drawTraffic(trafficDataTable, 'trafficASNPlot', 'Origin AS');
+        drawTraffic(trafficDataTable, 'trafficCountryPlot', 'Country');
 
     });
 </script>

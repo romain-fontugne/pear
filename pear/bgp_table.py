@@ -212,6 +212,14 @@ class BGPTable(object):
         cur.execute("SELECT distinct(peer) from {table}".format(table=self.sqltable))
         return [peer[0] for peer in cur.fetchall()]
 
+    def country_codes(self):
+        """Return the list of country codes"""
+
+        con = sqlite3.connect(self.cache_db)
+        cur = con.cursor()
+        cur.execute("SELECT distinct(country) from {table}".format(table=self.sqltable))
+        return [cc[0] for cc in cur.fetchall()]
+
     def clean_aspath(self, aspath):
         """Remove path prepending and duplicate ASes"""
         

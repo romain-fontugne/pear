@@ -20,7 +20,19 @@
     <!-- Custom styles for this template -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 
-    <script src="https://cdn.plot.ly/plotly-2.4.2.min.js"></script>
+    <!-- Bootstrap core JavaScript
+    ================================================== -->
+    <!-- JQuery -->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <!-- Bootstrap tooltips -->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.4/umd/popper.min.js"></script>
+    <!-- Bootstrap core JavaScript -->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.0/js/bootstrap.min.js"></script>
+    <!-- MDB core JavaScript -->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mdbootstrap/4.19.1/js/mdb.js"></script>
+    <!-- MDBootstrap Datatables  -->
+    <script type="text/javascript" src="{{ url_for('static', filename='js/addons/datatables2.min.js') }}"></script>
+
     <script src="{{url_for('static', filename='js/pear.js')}}"></script>
 
     {% block head %}{% endblock %}
@@ -30,7 +42,7 @@
     <nav class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0">
       <a class="navbar-brand col-sm-3 col-md-2 mr-0" href="#">AS2497</a>
       <form  class="form-inline w-100">
-      <input class="form-control form-control-dark w-100" name="search" type="text" placeholder="Search ASN" aria-label="Search">
+      <input class="form-control form-control-dark w-100" name="search" type="text" placeholder="Search by ASN or country" aria-label="Search">
       </form>
     </nav>
 
@@ -46,9 +58,27 @@
                 </a>
               </li>
               <li class="nav-item">
+                <a class="nav-link" href="/traffic">
+                  <span data-feather="shuffle"></span>
+                  Traffic Overview
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="/rtt">
+                  <span data-feather="watch"></span>
+                  RTT Overview
+                </a>
+              </li>
+              <li class="nav-item">
                 <a class="nav-link" href="/as_details">
                   <span data-feather="hexagon"></span>
                   AS details
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="/country">
+                  <span data-feather="map-pin"></span>
+                  Country details
                 </a>
               </li>
               <li class="nav-item">
@@ -58,21 +88,9 @@
                 </a>
               </li>
               <li class="nav-item">
-                <a class="nav-link" href="/traffic">
-                  <span data-feather="shuffle"></span>
-                  Traffic
-                </a>
-              </li>
-              <li class="nav-item">
                 <a class="nav-link" href="/peers">
                   <span data-feather="user-check"></span>
                   Peers
-                </a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" href="/rtt">
-                  <span data-feather="watch"></span>
-                  RTT
                 </a>
               </li>
             </ul>
@@ -87,21 +105,6 @@
         </main>
       </div>
     </div>
-
-    <!-- Bootstrap core JavaScript
-    ================================================== -->
-    <!-- Placed at the end of the document so the pages load faster -->
-
-    <!-- JQuery -->
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <!-- Bootstrap tooltips -->
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.4/umd/popper.min.js"></script>
-    <!-- Bootstrap core JavaScript -->
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.0/js/bootstrap.min.js"></script>
-    <!-- MDB core JavaScript -->
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mdbootstrap/4.19.1/js/mdb.js"></script>
-    <!-- MDBootstrap Datatables  -->
-    <script type="text/javascript" src="{{ url_for('static', filename='js/addons/datatables2.min.js') }}"></script>
 
     <!-- Icons -->
     <script src="https://unpkg.com/feather-icons/dist/feather.min.js"></script>

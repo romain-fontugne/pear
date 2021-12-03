@@ -10,7 +10,7 @@
 <form>
     <div class="row">
         <div class="col-8">
-                    <input type="text" placeholder="Enter an AS number (e.g. 2497)" class="form-control" name="asn" >
+                    <input type="text" placeholder="Enter an AS number (e.g. 15169)" class="form-control" name="asn" >
         </div>
     </div>
     <div class="row">
@@ -23,17 +23,6 @@
 {% else %}
 <h1>AS{{asn}} - {{as_name}}</h1>
 <h2>Traffic Overview</h2>
-<div class="dropdown">
-  <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">
-    Select a router
-  </button>
-  <div class="dropdown-menu">
-      {% for router in router_names %}
-      <a class="dropdown-item" href="/as_details?asn={{asn}}&router={{router}}">{{router}}</a>
-      {% endfor %}
-  </div>
-</div>
-
 <div class='row'>
     <div class='col'>
         <div id="trafficASNPlot"></div>
@@ -42,6 +31,7 @@
         <div id="trafficCountryPlot"></div>
     </div>
 </div>
+{% if traceroutes %}
 <h2>RTT overview</h2>
 RTT from Atlas probes via AS{{asn}}
 <div class='row'>
@@ -49,17 +39,20 @@ RTT from Atlas probes via AS{{asn}}
         <div id="rttPlot"></div>
     </div>
 </div>
-<h2>Traffic breakdown ({{selected_router}})</h2>
+{% endif %}
+<h2>Traffic breakdown</h2>
 <table id="trafficTable" class="table table-striped table-sm table-hover" width="100%">
     <thead>
     <tr>
         <th>Router</th>
-        <th>Origin ASN</th>
+        <th>Origin AS</th>
         <th>Prefix</th>
         <th>Traffic Volume</th>
         <th>Country</th>
         <th>AS path</th>
         <th>Description</th>
+        <th>Country Name</th>
+        <th>Origin AS Name</th>
     </tr>
     </thead>
     <tbody>
@@ -75,6 +68,8 @@ RTT from Atlas probes via AS{{asn}}
                 {{ ' - '.join(data.info.aspath) }}
             </td>
             <td>{{ data.info.descr }}</td>
+            <td>{{ data.info.country_name }}</td>
+            <td>{{ data.info.originasn_name }}</td>
         </tr>
       {% endfor %}
     {% endfor %}
@@ -122,25 +117,72 @@ RTT from Atlas probes via AS{{asn}}
 <script type="text/javascript">
 
     $(document).ready(function () {
-        $('#trafficTable').DataTable({
+        var trafficDataTable = $('#trafficTable').DataTable({
             paging: false,
             scrollY:        '50vh',
             scrollCollapse: true,
-            fnInitComplete: function () {
-                drawTraffic('trafficTable', 'trafficASNPlot', 'Origin ASN');
-                drawTraffic('trafficTable', 'trafficCountryPlot', 'Country');
-            },
+            columnDefs: [
+                {
+                    targets: [ 0 ],
+                    render: renderRouter
+                },
+                {
+                    targets: [ 1 ],
+                    render: renderASN
+                },
+                {
+                    targets: [ 4 ],
+                    render: renderCountry
+                },
+                {
+                    targets: [ 5 ],
+                    render: renderASpath
+                },
+                {
+                    targets: [ 7, 8 ],
+                    visible: false,
+                },
+                { 
+                    targets: [ 3 ],
+                    type: "traffic",
+                    render: renderTraffic
+                }
+            ],
         });
-        $('#rttTable').DataTable({
+
+        drawTraffic(trafficDataTable, 'trafficASNPlot', 'Origin AS');
+        drawTraffic(trafficDataTable, 'trafficCountryPlot', 'Country');
+
+        var rttTable = $('#rttTable').DataTable({
             paging: false,
-            fnInitComplete: function () {
-                drawRtt('rttTable', 'rttPlot', 'All');
-            },
             scrollY:        '50vh',
             scrollCollapse: true,
+            columnDefs: [ 
+                {
+                    targets: [ 0 ],
+                    render: renderAtlasProbe
+                },
+                {
+                    targets: [ 1 ],
+                    render: renderCountry
+                },
+                {
+                    targets: [ 3 ],
+                    render: renderRouter
+                },
+                {
+                    targets: [ 2 ],
+                    render: renderASN
+                },
+                {
+                    targets: [ 4 ],
+                    render: renderASpath
+                },
+            ]
         });
 
         $('.dataTables_length').addClass('bs-select');
+        drawRtt(rttTable, 'rttPlot', 'All');
 
     });
 </script>
