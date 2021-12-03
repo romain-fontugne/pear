@@ -99,7 +99,13 @@
         </nav>
 
         <main role="main" class="col-md-9 ml-sm-auto col-lg-10 pt-3 px-4">
-
+            <div class="row  justify-content-center">
+                <div class="progress col-3" id="loadingBar" style="height: 30px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                    role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" 
+                                                                             style="width: 100%"><b>Loading...</b></div>
+                </div>
+            </div>
             {% block body %}{% endblock %}
             
         </main>
@@ -117,5 +123,11 @@
    
   </body>
   {% block footer %}{% endblock %}
+
+  <script type="text/javascript">
+    $(document).ready(function () {
+      $('#loadingBar').hide();
+    })
+  </script>
 </html>
 

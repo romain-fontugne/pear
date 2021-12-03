@@ -68,43 +68,10 @@
 {% block footer %}
 <script type="text/javascript">
     $(document).ready(function () {
-        var trafficDataTable = $('#trafficTable').DataTable({
-            "paging": false,
-            "searchDelay": 750,
-            "scrollY": 850,
-            columnDefs: [
-                {
-                    targets: [ 0 ],
-                    render: renderRouter
-                },
-                {
-                    targets: [ 1 ],
-                    render: renderASN
-                },
-                {
-                    targets: [ 4 ],
-                    render: renderCountry
-                },
-                {
-                    targets: [ 5 ],
-                    render: renderASpath
-                },
-                {
-                    targets: [ 7, 8 ],
-                    visible: false,
-                },
-                { 
-                    targets: [ 3 ],
-                    type: "traffic",
-                    render: renderTraffic
-                }
-            ],
-        });
-        $('.dataTables_length').addClass('bs-select');
-
-        drawTraffic(trafficDataTable, 'trafficASNPlot', 'Origin AS');
-        drawTraffic(trafficDataTable, 'trafficCountryPlot', 'Country');
-
-    });
+        $('#mainProgress').hide();
+        var trafficDataTable = makeTrafficDataTable('#trafficTable')
+        drawTraffic(trafficDataTable, 'trafficASNPlot', 'Origin AS')
+        drawTraffic(trafficDataTable, 'trafficCountryPlot', 'Country')
+    })
 </script>
 {% endblock %}

@@ -14,13 +14,6 @@ from pear.geolite_city import GeoliteCity
 
 CACHE_DIR = appdirs.user_cache_dir('pear', 'IHR')
 
-def sizeof_fmt(num, suffix=''):
-    for unit in ['','K','M','G','T','P','E','Z']:
-        if abs(num) < 1000.0:
-            return "%3.1f%s%s" % (num, unit, suffix)
-        num /= 1000.0
-    return "%.1f%s%s" % (num, 'Y', suffix)
-
 
 class Pear():
     def __init__(self, ASN, weight_name, atlas_msm_ids=[], cache_db=None):
@@ -166,7 +159,7 @@ class Pear():
                             and ( country is None or country == info['country']) ):
 
                         traffic[router_name][prefix] = {
-                                'vol': sizeof_fmt(vol), 
+                                'vol': vol, 
                                 'info': info
                                 }
 

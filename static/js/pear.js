@@ -322,11 +322,11 @@ function number2short(value, si=true, dp=1) {
   const thresh = si ? 1000 : 1024;
 
   if (Math.abs(value) < thresh) {
-    return value ;
+    return String(Number(value).toFixed(0))+'bps' ;
   }
 
   const units = si 
-    ? ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'] 
+    ? ['kbps', 'Mbps', 'Gbps', 'Tbps', 'Pbps', 'Ebps', 'Zbps', 'Ybps'] 
     : ['Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi', 'Yi'];
   let u = -1;
   const r = 10**dp;
@@ -374,8 +374,8 @@ function trafficSunburst(table, agg_column) {
     let router = row[table_idx['router']].trim();
     let key = row[table_idx[agg_column]].trim();
     let key_name = row[table_idx[agg_column+' name']].trim();
-    let vol_short = row[table_idx['traffic volume']].trim();
-    let vol_value = short2number(vol_short);
+    let vol_value = Number(row[table_idx['traffic volume']])
+    let vol_short = number2short(vol_value);
     let prefix = row[table_idx['prefix']].toLowerCase().trim()
     let prefix_desc = row[table_idx['description']].trim()
 
@@ -468,16 +468,15 @@ function rttBoxplot(table, selected_country) {
 }
 
 function drawTraffic(trafficTable, trafficPlot, agg_column) {
-  var trafficData = trafficSunburst(
-      trafficTable, agg_column.toLowerCase().trim()
-  );
-    console.log('plotting sunburst')
-  trafficPlot = document.getElementById(trafficPlot);
-  var layout = { 
-    margin: {l:10, r:10, t:30, b:30},
-  }
-  Plotly.newPlot(trafficPlot, [trafficData], layout)
-    console.log('finished plotting')
+    var trafficData = trafficSunburst(
+        trafficTable, agg_column.toLowerCase().trim()
+    );
+        console.log('plotting sunburst')
+    trafficPlot = document.getElementById(trafficPlot);
+    var layout = { 
+        margin: {l:10, r:10, t:30, b:30},
+    }
+    return Plotly.plot(trafficPlot, [trafficData], layout)
 }
 
 function drawRtt(rttTable, rttPlot, country) {
@@ -512,19 +511,6 @@ function drawRtt(rttTable, rttPlot, country) {
   Plotly.newPlot(plotDiv, rttData, layout)
 }
 
-// Sorting function for shorthand notations (e.g. 1M)
-jQuery.fn.dataTableExt.oSort['traffic-asc'] = function(x,y) {
-    x = short2number(x);
-    y = short2number(y);
-    return ((x < y) ? -1 : ((x > y) ? 1 : 0));
-};
-
-jQuery.fn.dataTableExt.oSort['traffic-desc'] = function(x,y) {
-    x = short2number(x);
-    y = short2number(y);
-    return ((x < y) ? 1 : ((x > y) ? -1 : 0));
-};
-
 /* When the user clicks on the button,
 toggle between hiding and showing the dropdown content */
 function showHide(elem_id) {
@@ -547,7 +533,9 @@ function filterFunction(elem_input, elem_list) {
   }
 }
 
-/* Rendering functions for datatables*/
+/* # Datatables
+ *
+ * ## Rendering functions for datatables*/
 function renderASN(data, type, row, meta){
     if ( type === "display" )
     {
@@ -559,7 +547,7 @@ function renderASN(data, type, row, meta){
 function renderCountry(data, type, row, meta){
     if ( type === "display" )
     {
-        return '<a href="/country?cc='+data+'">'+isoCountries[data]+'</a>'
+        return '<a href="/country?cc='+data+'">'+getCountryName(data)+'</a>'
     }
     return data
 }
@@ -575,7 +563,15 @@ function renderRouter(data, type, row, meta){
 function renderTraffic(data, type, row, meta){
     if ( type === "display" )
     {
-        return data+'bps'
+        return number2short(data)
+    }
+    return data
+}
+
+function renderRTT(data, type, row, meta){
+    if ( type === "display" )
+    {
+        return Number(data).toFixed(0)+'ms'
     }
     return data
 }
@@ -602,7 +598,7 @@ function renderASpath(data, type, row, meta){
                 aPath += asn+' '
             }
             else{
-                aPath += renderASN(asn)+' '
+                aPath += renderASN(asn, 'display')+' '
             }
 
         }
@@ -611,4 +607,71 @@ function renderASpath(data, type, row, meta){
     return data
 }
 
+
+/* ## Functions to make traffic and RTT datatables */
+function makeTrafficDataTable(elem_id){ 
+
+    return $(elem_id).DataTable({
+        order: [[ 3, "desc" ]],
+        columnDefs: [
+            {
+                targets: [ 0 ],
+                render: renderRouter
+            },
+            {
+                targets: [ 1 ],
+                render: renderASN
+            },
+            { 
+                targets: [ 3 ],
+                render: renderTraffic
+            },
+            {
+                targets: [ 4 ],
+                render: renderCountry
+            },
+            {
+                targets: [ 5 ],
+                render: renderASpath
+            },
+            {
+                targets: [ 7, 8 ],
+                visible: false,
+            },
+        ],
+    });
+}
+
+function makeRTTDataTable(elem_id){ 
+
+    return $(elem_id).DataTable({
+        order: [[ 8, "desc" ]],
+        columnDefs: [ 
+            {
+                targets: [ 0 ],
+                render: renderAtlasProbe
+            },
+            {
+                targets: [ 1 ],
+                render: renderCountry
+            },
+            {
+                targets: [ 2 ],
+                render: renderASN
+            },
+            {
+                targets: [ 3 ],
+                render: renderRouter
+            },
+            {
+                targets: [ 4 ],
+                render: renderASpath
+            },
+            {
+                targets: [ 5, 6, 7 ],
+                render: renderRTT
+            },
+        ]
+    });
+}
 

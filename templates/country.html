@@ -118,68 +118,10 @@ RTT from Atlas probes via AS{{asn}}
 <script type="text/javascript">
 
     $(document).ready(function () {
-        var trafficDataTable = $('#trafficTable').DataTable({
-            paging: false,
-            scrollY:        '50vh',
-            scrollCollapse: true,
-            columnDefs: [
-                {
-                    targets: [ 0 ],
-                    render: renderRouter
-                },
-                {
-                    targets: [ 1 ],
-                    render: renderASN
-                },
-                {
-                    targets: [ 4 ],
-                    render: renderCountry
-                },
-                {
-                    targets: [ 5 ],
-                    render: renderASpath
-                },
-                {
-                    targets: [ 7, 8 ],
-                    visible: false,
-                },
-                { 
-                    targets: [ 3 ],
-                    type: "traffic",
-                    render: renderTraffic
-                }
-            ],
-        });
+        var trafficDataTable = makeTrafficDataTable('#trafficTable')
         drawTraffic(trafficDataTable, 'trafficASNPlot', 'Origin AS');
 
-        var rttTable = $('#rttTable').DataTable({
-            paging: false,
-            scrollY:        '50vh',
-            scrollCollapse: true,
-            columnDefs: [ 
-                {
-                    targets: [ 0 ],
-                    render: renderAtlasProbe
-                },
-                {
-                    targets: [ 1 ],
-                    render: renderCountry
-                },
-                {
-                    targets: [ 3 ],
-                    render: renderRouter
-                },
-                {
-                    targets: [ 2 ],
-                    render: renderASN
-                },
-                {
-                    targets: [ 4 ],
-                    render: renderASpath
-                },
-            ]
-        });
-
+        var rttTable = makeRTTDataTable('#rttTable')
         $('.dataTables_length').addClass('bs-select');
         drawRtt(rttTable, 'rttPlot', '{{ cc }}');
 
