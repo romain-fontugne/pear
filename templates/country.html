@@ -21,10 +21,36 @@
     </div>
 
 {% else %}
-<h1>{{country_name}}</h1>
+<div class="row">
+    <div class="col-10">
+        <h1>{{country_name}}</h1>
+    </div>
+
+    <div class='col-2'>
+        <div class="dropdown">
+        <a class=" dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <span data-feather="link"></span>
+            External links
+        </a>
+        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+
+            <a class="dropdown-item" target="_blank" href="https://ihr.iijlab.net/ihr/en-us/countries/{{cc}}">IHR</a>
+            <a class="dropdown-item" target="_blank" href="https://bgp.he.net/country/{{cc}}">bgp.he.net</a>
+            <a class="dropdown-item" target="_blank" href="https://stat.ripe.net/app/{{cc}}">RIPEstat</a>
+            <a class="dropdown-item" target="_blank" href="https://stat.ripe.net/ui2013/{{cc}}">RIPEstat (old)</a>
+        </div>
+        </div>
+    </div>
+</div>
 
 {% if flows %}
-<h2>Traffic Overview</h2>
+<div class="row">
+    <div class="col-10">
+        <h2>Traffic Overview</h2>
+    </div>
+    <div class="col-2">
+    </div>
+</div>
 <div class='row'>
     <div class='col'>
         <div id="trafficASNPlot"></div>
@@ -41,7 +67,14 @@ RTT from Atlas probes via AS{{asn}}
     </div>
 </div>
 {% endif %}
-<h2>Traffic breakdown</h2>
+<div class='row'>
+    <div class="col-10">
+        <h2>Traffic breakdown</h2>
+    </div>
+    <div class="col-2">
+        <button type="button" class="btn btn-light" onclick="redrawTraffic()">re-plot</button>
+    </div>
+</div>
 <table id="trafficTable" class="table table-striped table-sm table-hover" width="100%">
     <thead>
     <tr>
@@ -117,14 +150,15 @@ RTT from Atlas probes via AS{{asn}}
 {% block footer %}
 <script type="text/javascript">
 
-    $(document).ready(function () {
         var trafficDataTable = makeTrafficDataTable('#trafficTable')
-        drawTraffic(trafficDataTable, 'trafficASNPlot', 'Origin AS');
+        function redrawTraffic(){
+            drawTraffic(trafficDataTable, 'trafficASNPlot', 'Origin AS');
+        }
+        redrawTraffic()
 
         var rttTable = makeRTTDataTable('#rttTable')
         $('.dataTables_length').addClass('bs-select');
         drawRtt(rttTable, 'rttPlot', '{{ cc }}');
 
-    });
 </script>
 {% endblock %}

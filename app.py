@@ -137,6 +137,9 @@ def as_details(asn=None):
 
         asn = request.args.get('asn', None)
 
+    if asn is not None and asn.lower().startswith('as'):
+        asn = asn[2:]
+
     all_routers = pear.get_router_names() 
 
     traffic = pear.get_traffic(all_routers, asn=asn)

@@ -151,7 +151,7 @@ class Pear():
 
                     # Add country and AS names
                     info['country_name'] = ''
-                    if info['country'] is not None:
+                    if info['country'] is not None and info['country'] != 'ZZ':
                         info['country_name'] = countries.get(info['country']).name
                     info['originasn_name'] = self.as_name.name(info['originasn'])
 
@@ -193,6 +193,9 @@ class Pear():
 
         if None in ccs:
             ccs.remove(None)
+
+        if 'ZZ' in ccs:
+            ccs.remove('ZZ')
 
         return {cc: countries.get(cc).name for cc in sorted(ccs)}
 

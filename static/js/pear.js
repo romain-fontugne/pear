@@ -243,7 +243,8 @@ var isoCountries = {
     'EH' : 'Western Sahara',
     'YE' : 'Yemen',
     'ZM' : 'Zambia',
-    'ZW' : 'Zimbabwe'
+    'ZW' : 'Zimbabwe',
+    'ZZ' : 'Unknown'
 };
 
 function getCountryName (countryCode) {
@@ -360,7 +361,7 @@ function trafficSunburst(table, agg_column) {
   table_idx = findIndexes(table.columns().header())
     console.log(table_idx)
 
-  var rows = table.data()
+  var rows = table.rows({ search: 'applied' }).data()
   var vol_threshold = 0
   if(rows.length>1000){
     vol_threshold = 10000000;
@@ -431,10 +432,15 @@ function trafficSunburst(table, agg_column) {
 }
 //
 // Retrieve traffic data from table
+function average(grades) {
+  const total = grades.reduce((acc, c) => acc + c, 0);
+  return total / grades.length;
+}
+
 function rttBoxplot(table, selected_country) {
   traces = {}
   table_idx = findIndexes(table.columns().header())
-  var rows = table.data()
+  var rows = table.rows({ search: 'applied' }).data()
     
   for (var i = 1; i < rows.length; i++) {
     let row = rows[i]
@@ -459,10 +465,18 @@ function rttBoxplot(table, selected_country) {
     }
   }
 
-  var traces_arr = [];
-  for( agg in traces){
-      traces_arr.push(traces[agg])
+  // Sort aggregations per mean value
+  var sortable = [];
+  for (var agg in traces) {
+    sortable.push([agg, average(traces[agg]['x'])]);
   }
+
+  sortable.sort(function(a, b) {
+    return b[1] - a[1];
+  });
+
+  var traces_arr = [];
+  sortable.forEach(agg => { traces_arr.push(traces[agg[0]])})
 
   return traces_arr;
 }
@@ -476,7 +490,7 @@ function drawTraffic(trafficTable, trafficPlot, agg_column) {
     var layout = { 
         margin: {l:10, r:10, t:30, b:30},
     }
-    return Plotly.plot(trafficPlot, [trafficData], layout)
+    return Plotly.react(trafficPlot, [trafficData], layout)
 }
 
 function drawRtt(rttTable, rttPlot, country) {
@@ -505,10 +519,10 @@ function drawRtt(rttTable, rttPlot, country) {
         },
     height: 150+15*rttData.length,
     showlegend: false,
-    hovermode: 'closest'
+    hovermode: false,
   }
   
-  Plotly.newPlot(plotDiv, rttData, layout)
+  return Plotly.react(plotDiv, rttData, layout)
 }
 
 /* When the user clicks on the button,
@@ -595,10 +609,10 @@ function renderASpath(data, type, row, meta){
             let asn = asns[i]
 
             if(isNaN(asn)){ 
-                aPath += asn+' '
+                aPath += asn+'&nbsp;'
             }
             else{
-                aPath += renderASN(asn, 'display')+' '
+                aPath += renderASN(asn, 'display')+'&nbsp;'
             }
 
         }
@@ -632,6 +646,7 @@ function makeTrafficDataTable(elem_id){
             },
             {
                 targets: [ 5 ],
+                className: "no-wrap",
                 render: renderASpath
             },
             {
