@@ -39,7 +39,7 @@ The name of the files should be in the form: router1.csv
 ## Usage
 Pre-process data with the following command line:
 ```zsh
-python pear/pear.py 2497 ./db_2497_outbound.sql -p router*outbound.example.com.csv -b router*.example.com.mrt 
+python precompute.py 2497 ./db_2497_outbound.sql -p router*outbound.example.com.csv -b router*.example.com.mrt 
 ```
 where 'router*.example.com.csv' are the files containing traffic data for each
 router and 'router*.example.com.mrt' are the files containing routers routing data.
@@ -48,7 +48,7 @@ be stored in 2497_outbound.sql to enable faster load time for future executions.
 
 Then run the server with the db argument set to the folder containing the computed database:
 ```zsh
-python app.py --db ./
+python serve.py --db ./
 ```
 
 See reaults in your browser at: http://localhost:5000
