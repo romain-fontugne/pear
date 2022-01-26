@@ -39,22 +39,43 @@
   </head>
 
   <body>
-        <nav class="navbar navbar-dark sticky-top bg-dark p-0 justify-content-between flex-nowrap flex-row">
-        <a class="navbar-brand col-2" href="#"> <b>IIJ - AS2497</b> </a>
-        <form  class="form-inline navbar-form col-11">
-            <input class="form-control form-control-dark col-9" name="search" type="text" placeholder="Search by ASN or country" aria-label="Search">
-        </form>
+        <nav class="navbar navbar-dark sticky-top bg-dark p-0 flex-row">
+            <a class="navbar-brand col-2 mr-0" href="#"> <b>IIJ - AS2497</b> </a>
+            <form  class="form-inline navbar-form col-10">
+                <input class="form-control form-control-dark col-4 mr-auto" name="search" type="text" placeholder="Search by ASN or country" aria-label="Search">
+                <span class="text-light" data-feather="database">&nbsp; </span>
+                <select class="form-select dark col-2" name="db-folder" onchange="this.form.submit()">
+                        {% for db in config['basket-folders'] %}
+                        {% if db in session['pear'] %}
+                            <option selected value="{{ db }}">{{ db }}</option>
+                        {% else %}
+                            <option value="{{ db }}">{{ db }}</option>
+                        {% endif %}
+                        {% endfor %}
+                </select>
+
+                <select class="form-select dark col-2" name="db-file" onchange="this.form.submit()">
+                        {% for db in config['basket-files'] %}
+                        {% if db in session['pear'] %}
+                            <option selected value="{{ db }}">{{ db }}</option>
+                        {% else %}
+                            <option value="{{ db }}">{{ db }}</option>
+                        {% endif %}
+                        {% endfor %}
+                </select>
+
+            </form>
         </nav>
 
     <div class="container-fluid">
       <div class="row">
-        <nav class="col-2 d-none d-md-block bg-light sidebar">
-          <div class="sidebar-sticky">
-            <ul class="nav flex-column">
+        <nav class="col-2 bg-light sidebar">
+          <div class="sidebar-sticky flex  align-items-start">
+            <ul class="nav flex-column mb-auto ">
               <li class="nav-item">
                 <a class="nav-link" href="/">
                   <span data-feather="share-2"></span>
-                  AS Graph <span class="sr-only">(current)</span>
+                  AS Graph 
                 </a>
               </li>
               <li class="nav-item">
@@ -94,7 +115,6 @@
                 </a>
               </li>
             </ul>
-
           </div>
         </nav>
 

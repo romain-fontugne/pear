@@ -4,32 +4,23 @@ import json
 from iso3166 import countries
 
 from flask import Flask, render_template
-from flask import request
+from flask import request, session
 from flask_basicauth import BasicAuth
 
 from pear.pear import Pear
+from pear.basket import Basket
 
-parser = argparse.ArgumentParser()
-parser.add_argument('ASN', type=int,
-                    help='ASN of the network manageed by the user')
-#parser.add_argument('-c', '--route_collector', type=str, default='rrc06',
-        #help="BGP route collector that peers with given ASN"),
-parser.add_argument('-b', '--bgp_data', type=str, nargs='+', 
-        help="MRT files containing a RIB for monitored prefixes"),
-parser.add_argument('-p', '--prefixes', type=str, nargs='+', 
-        help="CSV files with a list of selected prefixes and optional traffic volume"),
-parser.add_argument('-w', '--weight_name', type=str, default='avg_bps',
-        help="Name of the column in the csv file used for prefix weights"),
-parser.add_argument('--atlas_msm', default=[], nargs='+',
-        help="Atlas traceroute measurement IDs to use of RTT results"),
-parser.add_argument('-d','--db', default=None, 
-        help="SQLite database to cache computed data"),
-parser.add_argument('--serverless', action='store_true',
-        help="Compute database if needed, don't start the web server."),
+MAX_PEARS = 20
+
+parser = argparse.ArgumentParser("Start the web server for given pre-computed databases.")
+parser.add_argument('--db', 
+        help="Folder containing database produced by pear."),
 args = parser.parse_args()
+
 
 # Initiate Flask app
 app = Flask(__name__)
+app.secret_key = 'k2raf dafh082re l;fas dj['
 
 # set basic authentication if there is a auth.json file
 if os.path.exists('auth.json'):
@@ -39,14 +30,10 @@ if os.path.exists('auth.json'):
     app.config['BASIC_AUTH_FORCE'] = True
     basic_auth = BasicAuth(app)
 
-# Main app
-pear = Pear(args.ASN, args.weight_name, atlas_msm_ids=args.atlas_msm, 
-        cache_db=args.db)
-# Load all data (traffic and routing)
-pear.load(args.prefixes, args.bgp_data)
-# Prepare AS graphs
-plotter = pear.make_graphs()
+# Initiate basket (manager for pear instances)
+basket = Basket(args.db, max_pears=MAX_PEARS)
 
+# Seach bar function
 def search(keyword):
     try:
         if keyword.startswith('AS') and int(keyword[2:]):
@@ -68,10 +55,17 @@ def search(keyword):
 @app.route('/')
 def index(no_search=False):
 
+    _, plotter = basket.get(session, request)
+    # TODO need to reimplement graph in JS!
+    dbs = [db.rpartition('/') for db in basket.list()]
+    app.config['basket-files'] = sorted(set([db[2] for db in dbs]))
+    app.config['basket-folders'] = sorted(set([db[0] for db in dbs]))
+
     if 'search' in request.args and not no_search:
         return search(request.args.get('search'))
 
-    min_traffic = request.args.get('min_traffic', plotter.minimum_traffic)
+    min_traffic = request.args.get('min_traffic', session.get('min_traffic', 0))
+    session['min_traffic'] = min_traffic
     max_traffic = 1000000000
     plotter.plot( int(min_traffic) )
     return render_template('index.html', asgraph=plotter.to_json(),
@@ -81,6 +75,8 @@ def index(no_search=False):
 
 @app.route('/routing')
 def routing():
+
+    pear, _ = basket.get(session,request)
 
     if 'search' in request.args:
         return search(request.args.get('search'))
@@ -97,6 +93,8 @@ def routing():
 
 @app.route('/traffic')
 def traffic():
+
+    pear, _ = basket.get(session,request)
 
     if 'search' in request.args:
         return search(request.args.get('search'))
@@ -121,6 +119,8 @@ def traffic():
 @app.route('/peers')
 def peers():
 
+    pear, _ = basket.get(session,request)
+
     if 'search' in request.args:
         return search(request.args.get('search'))
 
@@ -130,6 +130,8 @@ def peers():
 
 @app.route('/as_details')
 def as_details(asn=None):
+
+    pear, _ = basket.get(session,request)
 
     if asn is None:
         if 'search' in request.args:
@@ -161,6 +163,8 @@ def as_details(asn=None):
 @app.route('/country')
 def country(cc=None):
 
+    pear, _ = basket.get(session,request)
+
     if cc is None:
         if 'search' in request.args:
             return search(request.args.get('search'))
@@ -188,6 +192,8 @@ def country(cc=None):
 @app.route('/rtt')
 def rtt():
 
+    pear, _ = basket.get(session,request)
+
     if 'search' in request.args:
         return search(request.args.get('search'))
 
@@ -203,5 +209,4 @@ def rtt():
             ) 
 
 
-if not args.serverless:
-    app.run(debug=True)
+app.run(debug=True)

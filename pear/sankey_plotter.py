@@ -10,6 +10,8 @@ from .as_name import ASName
 OWN_AS, DIRECT_PEER, OTHER_COLOR = "gray", "green", "blue"
 
 def sizeof_fmt(num, suffix=''):
+    if num is None:
+        return '-'
     for unit in ['','K','M','G','T','P','E','Z']:
         if abs(num) < 1024.0:
             return "%3.1f%s%s" % (num, unit, suffix)
@@ -26,7 +28,6 @@ class SankeyPlotter(object):
 
         self.colors = defaultdict(lambda: OTHER_COLOR)
 
-        self.minimum_traffic = 0
 
     def new_trace(self, visible=False):
         "Returns a new empty sankey trace"
@@ -123,7 +124,6 @@ class SankeyPlotter(object):
 
     def plot(self, minimum_traffic):
 
-        self.minimum_traffic = minimum_traffic
         data = []
         buttons = []
         # Add each trace to the figure and dropdown menu

@@ -1,7 +1,13 @@
 import appdirs
+import argparse
 from collections import defaultdict
+import glob
 from iso3166 import countries
+import json
+import os
+import sqlite3
 import sys
+
 from .as_graph import ASGraph
 from .as_name import ASName
 from .atlas_traceroute import AtlasTraceroute
@@ -14,24 +20,84 @@ from pear.geolite_city import GeoliteCity
 
 CACHE_DIR = appdirs.user_cache_dir('pear', 'IHR')
 
+def guess_config(sqlite_fname):
+    """Guess configuration (temporary fix for compatibility with old versions)"""
+
+    cities = {
+            'us': ['nyc', 'sea', 'lax', 'sjc', 'abn'],
+            'asia': ['sgp', 'hkg'],
+            'eu': ['ldn'],
+            'jp': ['tky', 'osk']
+            }
+    
+    region = sqlite_fname.rpartition('/')[2].partition('_')[0]
+    working_directory = sqlite_fname.rpartition('/')[0]+'/'
+    prefix_fnames = [fname for fname in glob.glob(working_directory+'/mean_tput/*.csv')
+        if fname.rpartition('/')[2].partition('0')[0] in cities[region]]
+
+    # guess MRT file names from sqlite tables name
+    con = sqlite3.connect(sqlite_fname)
+    cursor = con.cursor()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = cursor.fetchall()
+    bgp_fnames = ['./'+table[0].partition('bgp_')[2] for table in tables if table[0].startswith('bgp_bview')]
+    con.close()
+    
+
+    return {
+            'asn': 2497,
+            'weight_name': 'avg_bps',
+            'prefix_fnames': prefix_fnames,
+            'bgp_fnames': bgp_fnames,
+            'atlas_msm_ids': [],
+            }
+
 
 class Pear():
-    def __init__(self, ASN, weight_name, atlas_msm_ids=[], cache_db=None):
-        self.ASN = ASN
-        self.weight_name = weight_name
+    def __init__(self, sqlite_fname, ASN=None, weight_name=None, 
+            atlas_msm_ids=[], prefix_fnames=[], bgp_fnames=[]):
+        """Initiate pear instance either with raw data (all arguments required)
+        or with a pre-computed database (only sqlite_fname is required)."""
 
+        config = {
+            'asn': ASN,
+            'weight_name': weight_name,
+            'prefix_fnames': prefix_fnames,
+            'bgp_fnames': bgp_fnames,
+            'atlas_msm_ids': atlas_msm_ids,
+        }
+
+        if ASN is None or weight_name is None or len(prefix_fnames)==0 or len(bgp_fnames)==0:
+            # Load config from file if config is empty
+            if os.path.exists(sqlite_fname+'.json'):
+                with open(sqlite_fname+'.json', 'r') as fp:
+                    config = json.load(fp)
+            else:
+                # temporary fix for compatibility with old versions
+                config = guess_config(sqlite_fname)
+                with open(sqlite_fname+'.json', 'w') as fp:
+                    json.dump(config, fp)
+        else:
+            with open(sqlite_fname+'.json', 'w') as fp:
+                json.dump(config, fp)
+
+        print('config: ', config)
+        self.ASN = config['asn']
+        self.weight_name = config['weight_name']
+        self.prefix_fnames = config['prefix_fnames']
+        self.bgp_fnames = config['bgp_fnames']
+        self.atlas_msm_ids = config['atlas_msm_ids']
+
+        self.sqlite_db = sqlite_fname
         self.first_router = None
         self.ribs = {}
         self.flows = {}
         self.all_peers = set()
-        self.atlas_msm_ids = atlas_msm_ids
-        self.cache_db = cache_db
         print('Loading AS names')
-        self.as_name = ASName(self.cache_db)
+        self.as_name = ASName(self.sqlite_db)
 
-    def load(self, prefix_fnames, bgp_fnames):
+    def load(self):
 
-        # Match router names and MRT file names
         router2mrt = {}
         loaded_mrt = defaultdict(lambda:
                     {
@@ -41,17 +107,19 @@ class Pear():
                         'prefixes': []
                     }
                 )
-        for prefix_fname in prefix_fnames:
+
+        # Match router names and MRT file names
+        for prefix_fname in self.prefix_fnames:
             router_name = prefix_fname.rpartition('/')[2].rpartition('.')[0] 
 
-            mrt_fname = bgp_fnames[0]
-            if len(bgp_fnames) > 1:
-                mrt_fname = [fname for fname in bgp_fnames if router_name in fname][0]
+            mrt_fname = self.bgp_fnames[0]
+            if len(self.bgp_fnames) > 1:
+                mrt_fname = [fname for fname in self.bgp_fnames if router_name in fname][0]
             router2mrt[router_name] = mrt_fname
             loaded_mrt[mrt_fname]['all_routers'].add(router_name)
 
         # Load traffic and BGP data
-        for prefix_fname in prefix_fnames:
+        for prefix_fname in self.prefix_fnames:
             router_name = prefix_fname.rpartition('/')[2].rpartition('.')[0] 
             if self.first_router is None:
                 self.first_router = router_name
@@ -63,7 +131,7 @@ class Pear():
             # load routing data
             mrt_fname = router2mrt[router_name] 
             if loaded_mrt[mrt_fname]['rib'] is None:
-                rib = BGPTable( self.ASN, cache_db=self.cache_db)
+                rib = BGPTable( self.ASN, cache_db=self.sqlite_db)
                 sys.stderr.write(f'Reading BGP data for {router_name}\n')
                 rib.load_bgp(mrt_fname)
                 loaded_mrt[mrt_fname]['rib'] = rib
@@ -73,7 +141,7 @@ class Pear():
 
             # Load things that need a full RIB
             self.traceroutes = AtlasTraceroute(self.ASN, rib, 
-                    measurement_ids=self.atlas_msm_ids, cache_db=self.cache_db)
+                    measurement_ids=self.atlas_msm_ids, cache_db=self.sqlite_db)
 
             
             loaded_mrt[mrt_fname]['prefixes'].extend(weights.prefixes())
@@ -149,9 +217,11 @@ class Pear():
                 for prefix, vol in self.flows[router_name].raw_weights().items():
                     info = rib.prefix_info(prefix)
 
+                    print(prefix, info)
+
                     # Add country and AS names
                     info['country_name'] = ''
-                    if info['country'] is not None and info['country'] != 'ZZ':
+                    if 'country' in info and info['country'] is not None and info['country'] != 'ZZ':
                         info['country_name'] = countries.get(info['country']).name
                     info['originasn_name'] = self.as_name.name(info['originasn'])
 
@@ -199,4 +269,30 @@ class Pear():
 
         return {cc: countries.get(cc).name for cc in sorted(ccs)}
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+	"Process raw data (traffic, BGP, Atlas) and store in a database.")
 
+    parser.add_argument('ASN', type=int,
+                        help='ASN of the network manageed by the user')
+    parser.add_argument('db', help="SQLite database to store computed data"),
+    #parser.add_argument('-c', '--route_collector', type=str, default='rrc06',
+            #help="BGP route collector that peers with given ASN"),
+    parser.add_argument('-b', '--bgp_data', type=str, nargs='+', 
+            help="MRT files containing a RIB for monitored prefixes"),
+    parser.add_argument('-p', '--prefixes', type=str, nargs='+', 
+            help="CSV files with a list of selected prefixes and optional traffic volume"),
+    parser.add_argument('-w', '--weight_name', type=str, default='avg_bps',
+            help="Name of the column in the csv file used for prefix weights"),
+    parser.add_argument('--atlas_msm', default=[], nargs='+',
+            help="Atlas traceroute measurement IDs to use of RTT results"),
+    args = parser.parse_args()
+
+    pear = Pear(args.db, args.ASN, args.weight_name, 
+	 	prefix_fnames=args.prefixes, bgp_fnames=args.bgp_data, 
+		atlas_msm_ids=args.atlas_msm)
+    # Load all data (traffic and routing)
+    pear.load()
+    # Prepare AS graphs
+# TODO remove this line??
+    plotter = pear.make_graphs()
