@@ -37,16 +37,21 @@ Routing data should be RIB in the MRT format. The tool can read compressed files
 The name of the files should be in the form: router1.csv 
 
 ## Usage
-Run the tool with the following command line:
+Pre-process data with the following command line:
 ```zsh
-python app.py 2497 -p router*outbound.example.com.csv -b router*.example.com.mrt --db 2497_outbound.sql
+python pear/pear.py 2497 ./db_2497_outbound.sql -p router*outbound.example.com.csv -b router*.example.com.mrt 
 ```
 where 'router*.example.com.csv' are the files containing traffic data for each
 router and 'router*.example.com.mrt' are the files containing routers routing data.
 This will take a few minutes to read and load all the data. Computed data will
 be stored in 2497_outbound.sql to enable faster load time for future executions.
 
-Then in your browser go to: http://localhost:5000
+Then run the server with the db argument set to the folder containing the computed database:
+```zsh
+python app.py --db ./
+```
+
+See reaults in your browser at: http://localhost:5000
 
 ## Acknowledgments
 
