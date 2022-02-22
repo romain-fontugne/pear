@@ -48,10 +48,10 @@ be stored in 2497_outbound.sql to enable faster load time for future executions.
 
 Then run the server with the db argument set to the folder containing the computed database:
 ```zsh
-python serve.py --db ./ --host 127.0.0.1
+python serve.py --db ./ --host 127.0.0.1 --port 5000
 ```
 
-See results in your browser at: http://localhost:5000
+See results in your browser at: http://127.0.0.1:5000
 
 ## Acknowledgments
 
