@@ -15,6 +15,12 @@ MAX_PEARS = 20
 parser = argparse.ArgumentParser("Start the web server for given pre-computed databases.")
 parser.add_argument('--db', 
         help="Folder containing database produced by pear."),
+parser.add_argument('--host', 
+        help="IP address the server is listening to.",
+        default="127.0.0.1"),
+parser.add_argument('--port', 
+        help="Port number the server is listening to.",
+        default="5000"),
 args = parser.parse_args()
 
 
@@ -208,5 +214,4 @@ def rtt():
             selected_country=selected_country
             ) 
 
-
-app.run(debug=True)
+app.run(host=args.host, port=args.port, debug=True)
